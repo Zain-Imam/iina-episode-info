@@ -107,10 +107,78 @@
     margin-right: 5px; vertical-align: middle;
   }
   @keyframes sp { to { transform: rotate(360deg); } }
+  hr.div { border: none; border-top: 1px solid rgba(255,255,255,.09); margin: 14px 0; }
+
+  /* Opacity slider */
+  .op-wrap { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 9px 12px; margin-bottom: 12px; }
+  .op-row  { display: flex; align-items: center; gap: 8px; }
+  #opacity-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; }
+  #opacity-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #e50914; cursor: pointer; }
+  #opacity-val { font-size: 11px; color: rgba(255,255,255,.45); min-width: 34px; text-align: right; }
+
+  /* Dismiss button */
+  #ov-dismiss { display: none; margin-bottom: 10px; }
+  #ov-dismiss button { width: 100%; background: rgba(255,80,80,.15); border: 1px solid rgba(255,80,80,.35); color: rgba(255,180,180,.9); font-size: 12px; font-weight: 600; padding: 7px; border-radius: 6px; cursor: pointer; }
+
+  /* Subtitle section */
+  .sub-hd { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 8px; }
+  .key-box { background: rgba(255,140,0,.07); border: 1px solid rgba(255,140,0,.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  .key-title { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,140,0,.85); margin-bottom: 4px; }
+  .key-desc  { font-size: 11px; color: rgba(255,255,255,.5); line-height: 1.5; margin-bottom: 8px; }
+  .key-row   { display: flex; gap: 6px; margin-bottom: 5px; }
+  .key-row input { flex: 1; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 6px 9px; color: #fff; font-size: 12px; font-family: inherit; outline: none; }
+  .key-msg   { font-size: 11px; min-height: 15px; color: rgba(255,255,255,.4); }
+  .key-ok    { background: rgba(48,209,88,.09); border: 1px solid rgba(48,209,88,.3); border-radius: 7px; padding: 6px 12px; margin-bottom: 10px; font-size: 11px; display: none; justify-content: space-between; align-items: center; }
+  .lang-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .lang-lbl  { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,255,255,.35); flex-shrink: 0; }
+  .lang-inp  { flex: 1; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 5px 9px; color: #fff; font-size: 12px; font-family: inherit; outline: none; }
+  .sub-btn2  { width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: rgba(255,255,255,.8); font-size: 12px; font-weight: 600; padding: 7px; border-radius: 6px; cursor: pointer; margin-bottom: 8px; }
+  .sub-btn2:hover:not(:disabled) { background: rgba(255,255,255,.15); }
+  .sub-btn2:disabled { opacity: .35; cursor: default; }
+  .sub-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .sub-row:last-child { border-bottom: none; }
+  .sub-info { flex: 1; min-width: 0; }
+  .sub-name { font-size: 12px; color: rgba(255,255,255,.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub-meta { font-size: 10px; color: rgba(255,255,255,.35); margin-top: 2px; }
+  .sub-load { flex-shrink: 0; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); color: rgba(255,255,255,.7); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+  .sub-load:hover:not(:disabled) { background: #27ae60; border-color: #27ae60; color: #fff; }
+  .sub-load.loaded { background: #27ae60; border-color: #27ae60; color: #fff; }
+  .sub-none-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 12px; color: rgba(255,255,255,.4); font-style: italic; }
+  .sub-none-btn { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: rgba(255,255,255,.55); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+  .sub-none-btn.on { background: #555; border-color: #666; color: #fff; }
 </style>
 </head>
 <body>
 <div id="ov-status-box" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:8px 12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px">Overlay Status</div><div id="ov-st" style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.4">Waiting...</div></div>
+
+<!-- Overlay ON/OFF toggle -->
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
+  <div>
+    <div style="font-size:13px;font-weight:600;color:#fff">Show Overlay on Pause</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Displays episode info 3s after pausing</div>
+  </div>
+  <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:12px;cursor:pointer">
+    <input type="checkbox" id="overlay-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleOverlay(this.checked)" />
+    <span id="toggle-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
+      <span id="toggle-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
+    </span>
+  </label>
+</div>
+
+<!-- Dismiss overlay (visible only when overlay is showing) -->
+<div id="ov-dismiss">
+  <button onclick="iina.postMessage('overlayCloseRequest',{})">✕  Dismiss overlay</button>
+</div>
+
+<!-- Overlay shade slider -->
+<div class="op-wrap">
+  <div class="op-row">
+    <div class="sl" style="margin:0">Overlay Shade</div>
+    <input type="range" id="opacity-slider" min="0" max="100" value="72" oninput="doSetOpacity(this.value)" />
+    <span id="opacity-val">72%</span>
+  </div>
+  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">0% = transparent · 100% = solid black</div>
+</div>
 
 <!-- Saved card with full details -->
 <div id="saved">
@@ -148,6 +216,82 @@
 </div>
 
 <div id="panel"><div class="msg">Search above to find a show or movie.</div></div>
+
+<hr class="div" />
+
+<!-- OpenSubtitles first, Wyzie second -->
+<div id="sub-section">
+  <!-- OpenSubtitles.com -->
+  <div class="sub-hd">Subtitles — OpenSubtitles.com</div>
+  <div id="os-key-box" class="key-box">
+    <div class="key-title">⚠ API Key required (free)</div>
+    <div class="key-desc">opensubtitles.com → My Account → API Consumers → Create consumer</div>
+    <div class="key-row">
+      <input type="password" id="os-key-input" placeholder="Paste API Key…" onkeydown="if(event.key==='Enter')doSaveOsKey()" />
+      <button onclick="doSaveOsKey()" style="background:#c0392b;border:none;color:#fff;font-size:11px;font-weight:600;padding:6px 13px;border-radius:6px;cursor:pointer">Save</button>
+    </div>
+    <div id="os-key-msg" class="key-msg"></div>
+  </div>
+  <div id="os-key-ok" class="key-ok">
+    <span style="color:rgba(48,209,88,.9)">✓ API Key active (5 downloads/day)</span>
+    <button onclick="doChangeOsKey()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;padding:0">Change</button>
+  </div>
+  <!-- Login — always visible regardless of API Key state -->
+  <div id="os-login-form" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px 12px;margin-bottom:10px">
+    <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:5px">Sign in (optional — more downloads)</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <span style="font-size:11px;color:rgba(255,255,255,.4);width:64px;flex-shrink:0">Username</span>
+      <input type="text" id="os-user" placeholder="username" autocomplete="off" style="flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:5px 9px;color:#fff;font-size:12px;font-family:inherit;outline:none" />
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px">
+      <span style="font-size:11px;color:rgba(255,255,255,.4);width:64px;flex-shrink:0">Password</span>
+      <input type="password" id="os-pass" placeholder="password" onkeydown="if(event.key==='Enter')doOsLogin()" style="flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:5px 9px;color:#fff;font-size:12px;font-family:inherit;outline:none" />
+    </div>
+    <button id="os-login-btn" onclick="doOsLogin()" style="width:100%;background:#c0392b;border:none;color:#fff;font-size:12px;font-weight:600;padding:6px;border-radius:6px;cursor:pointer">Sign In</button>
+    <div id="os-login-msg" style="font-size:11px;min-height:14px;color:rgba(255,255,255,.4);margin-top:4px"></div>
+    <div id="os-key-required-note" style="display:none;font-size:10px;color:rgba(255,200,100,.6);margin-top:3px">⚠ Enter API Key above before signing in</div>
+  </div>
+  <div id="os-logged" style="display:none;background:rgba(48,209,88,.09);border:1px solid rgba(48,209,88,.3);border-radius:7px;padding:6px 12px;margin-bottom:10px;font-size:11px;justify-content:space-between;align-items:center">
+    <span style="color:rgba(48,209,88,.9)">✓ Signed in as <strong id="os-uname"></strong></span>
+    <button onclick="doOsLogout()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;padding:0">Sign out</button>
+  </div>
+  <div class="lang-row">
+    <span class="lang-lbl">Language</span>
+    <input id="os-lang" type="text" value="en" placeholder="en, fr…" class="lang-inp" />
+  </div>
+  <button id="os-search-btn" class="sub-btn2" onclick="doOsSearch()" disabled>Search OpenSubtitles</button>
+  <div id="os-results"><div class="msg" style="padding:6px 0">Set API Key above first.</div></div>
+
+  <hr class="div" />
+
+  <!-- Wyzie Subs -->
+  <div class="sub-hd">Subtitles — Wyzie Subs</div>
+  <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
+    OpenSubtitles · SubDL · Podnapisi + more &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">sub.wyzie.io/redeem</strong>
+  </div>
+  <div id="wz-key-box" class="key-box">
+    <div class="key-title">⚠ Wyzie API Key (free, instant)</div>
+    <div class="key-desc">sub.wyzie.io/redeem → click Generate → paste below</div>
+    <div class="key-row">
+      <input type="password" id="wz-key-input" placeholder="Paste Wyzie key…" onkeydown="if(event.key==='Enter')doSaveWzKey()" />
+      <button onclick="doSaveWzKey()" style="background:#c0392b;border:none;color:#fff;font-size:11px;font-weight:600;padding:6px 13px;border-radius:6px;cursor:pointer">Save</button>
+    </div>
+    <div id="wz-key-msg" class="key-msg"></div>
+  </div>
+  <div id="wz-key-ok" class="key-ok">
+    <span style="color:rgba(48,209,88,.9)">✓ Wyzie key active — unlimited</span>
+    <button onclick="doChangeWzKey()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;padding:0">Change</button>
+  </div>
+  <div class="lang-row">
+    <span class="lang-lbl">Language</span>
+    <input id="wz-lang" type="text" value="en" placeholder="en, fr…" class="lang-inp" />
+  </div>
+  <button id="wz-search-btn" class="sub-btn2" onclick="doWzSearch()" disabled>Search Wyzie Subs</button>
+  <div id="wz-results"><div class="msg" style="padding:6px 0">Enter Wyzie key above, then select an episode.</div></div>
+  <div id="wz-clear-row" style="display:none;margin-top:6px">
+    <button style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);font-size:11px;padding:5px;border-radius:5px;cursor:pointer" onclick="doClearSub()">Disable loaded subtitle</button>
+  </div>
+</div>
 
 <script>
 var TK = localStorage.getItem("epinfo_tmdb_key") || "";
@@ -226,6 +370,8 @@ function doClear() {
   episodeCache = [];
   iina.postMessage("clearEpisode", {});
   resetPanel();
+  if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
+  if (typeof resetOs === "function") { resetOs(); var osBtn = document.getElementById("os-search-btn"); if (osBtn) osBtn.disabled = true; }
 }
 
 // ── Search ────────────────────────────────────────────────────
@@ -313,7 +459,8 @@ function pickItem(item) {
           airDate:d.release_date||"", isStream:false,
           rating:d.vote_average?d.vote_average.toFixed(1):"",
           overview:d.overview||"",
-          posterUrl:d.poster_path ? "https://image.tmdb.org/t/p/w500" + d.poster_path : "" };
+          posterUrl:d.poster_path ? "https://image.tmdb.org/t/p/w500" + d.poster_path : "",
+          tmdbId: String(item.id), season: null, episode: null, isMovie: true };
         saveSelection(info);
       }).catch(function(){
         document.getElementById("panel").innerHTML='<div class="msg">Failed to load.</div>';
@@ -392,7 +539,8 @@ function pickEp(idx) {
     airDate:   ep.air_date||"",
     rating:    ep.vote_average?ep.vote_average.toFixed(1):"",
     overview:  ep.overview||"",
-    posterUrl: seasonPosterUrl || (selShow && selShow.poster_path ? "https://image.tmdb.org/t/p/w500" + selShow.poster_path : "")
+    posterUrl: seasonPosterUrl || (selShow && selShow.poster_path ? "https://image.tmdb.org/t/p/w500" + selShow.poster_path : ""),
+    tmdbId: String(selShow.id), season: selSeason, episode: ep.episode_number, isMovie: false
   };
   saveSelection(info);
 }
@@ -402,11 +550,40 @@ function saveSelection(info) {
   showSaved(info);
   iina.postMessage("episodeSelected", info);
   document.getElementById("panel").innerHTML =
-    '<div class="ok">✓ Saved — will show on next pause</div>' +
-    '<div class="msg" style="padding-top:2px">Search again to change episode</div>';
+    '<div class="ok" style="padding:8px 0">✓ Saved</div>';
   selShow      = null;
   selSeason    = null;
   episodeCache = [];
+  if (WZK) document.getElementById("wz-search-btn").disabled = false;
+  if (typeof resetWz === "function") resetWz();
+  // enable OS search button if key is set
+  var osBtn = document.getElementById("os-search-btn");
+  if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
+  if (typeof resetOs === "function") resetOs();
+}
+
+// ── Overlay ON/OFF toggle ─────────────────────────────────────
+(function() {
+  var enabled = localStorage.getItem("epinfo_overlay_enabled") !== "false"; // default ON
+  document.getElementById("overlay-toggle").checked = enabled;
+  updateToggleVisual(enabled);
+  // Send initial state to main.js after a short delay (handlers must be registered)
+  setTimeout(function() {
+    iina.postMessage("setOverlayEnabled", { enabled: enabled });
+  }, 600);
+})();
+
+function updateToggleVisual(enabled) {
+  var track = document.getElementById("toggle-track");
+  var thumb = document.getElementById("toggle-thumb");
+  if (track) track.style.background = enabled ? "rgba(48,209,88,.85)" : "rgba(255,255,255,.2)";
+  if (thumb) thumb.style.left = enabled ? "21px" : "3px";
+}
+
+function doToggleOverlay(enabled) {
+  localStorage.setItem("epinfo_overlay_enabled", enabled ? "true" : "false");
+  updateToggleVisual(enabled);
+  iina.postMessage("setOverlayEnabled", { enabled: enabled });
 }
 
 iina.onMessage("overlayStatus", function(d){
@@ -478,6 +655,239 @@ function doChangeKey() {
   document.getElementById("api-msg").textContent = "";
   showApiForm();
 }
+
+// ── NEW: Opacity slider ───────────────────────────────────────
+(function(){
+  var s = localStorage.getItem("epinfo_overlay_opacity");
+  if (s !== null) {
+    var p = Math.round(parseFloat(s) * 100);
+    document.getElementById("opacity-slider").value = p;
+    document.getElementById("opacity-val").textContent = p + "%";
+  }
+})();
+function doSetOpacity(val) {
+  var p = parseInt(val, 10);
+  document.getElementById("opacity-val").textContent = p + "%";
+  var n = p / 100;
+  try { localStorage.setItem("epinfo_overlay_opacity", n); } catch(e) {}
+  iina.postMessage("setOverlayOpacity", { value: n });
+}
+
+// ── NEW: Overlay dismiss/showing ──────────────────────────────
+iina.onMessage("overlayShowing", function(d) {
+  document.getElementById("ov-dismiss").style.display = d.visible ? "block" : "none";
+});
+
+// ── NEW: Wyzie Subs ───────────────────────────────────────────
+var WZK = localStorage.getItem("epinfo_wyzie_key") || "";
+var wzCache = [], wzLoadedIdx = null, wzPendingIdx = null;
+
+(function() {
+  if (WZK) { document.getElementById("wz-key-box").style.display = "none"; document.getElementById("wz-key-ok").style.display = "flex"; }
+})();
+
+function doSaveWzKey() {
+  var key = (document.getElementById("wz-key-input").value || "").trim();
+  var msg = document.getElementById("wz-key-msg");
+  if (!key) { msg.style.color = "#ff453a"; msg.textContent = "Please paste your key."; return; }
+  localStorage.setItem("epinfo_wyzie_key", key); WZK = key;
+  msg.style.color = "#30d158"; msg.textContent = "✓ Saved!";
+  setTimeout(function() {
+    document.getElementById("wz-key-box").style.display = "none";
+    document.getElementById("wz-key-ok").style.display = "flex";
+    if (document.getElementById("wz-search-btn") && localStorage.getItem("epinfo_ep")) {
+      document.getElementById("wz-search-btn").disabled = false;
+    }
+  }, 700);
+}
+function doChangeWzKey() {
+  WZK = ""; localStorage.removeItem("epinfo_wyzie_key");
+  document.getElementById("wz-key-input").value = "";
+  document.getElementById("wz-key-msg").textContent = "";
+  document.getElementById("wz-key-box").style.display = "block";
+  document.getElementById("wz-key-ok").style.display = "none";
+  document.getElementById("wz-search-btn").disabled = true;
+}
+function resetWz() {
+  wzCache = []; wzLoadedIdx = null; wzPendingIdx = null;
+  document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">Select an episode, then search.</div>';
+  document.getElementById("wz-clear-row").style.display = "none";
+}
+function doWzSearch() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  if (!saved) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">No episode selected.</div>'; return; }
+  if (!WZK) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">Enter your Wyzie key first.</div>'; return; }
+  if (!saved.tmdbId) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">No TMDB ID — re-select episode.</div>'; return; }
+  document.getElementById("wz-search-btn").disabled = true;
+  document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>Searching 10+ sources…</div>';
+  iina.postMessage("searchWyzie", {
+    tmdbId:  saved.tmdbId,
+    season:  saved.season  || null,
+    episode: saved.episode || null,
+    lang:    (document.getElementById("wz-lang").value || "en").trim() || "en",
+    key:     WZK
+  });
+}
+iina.onMessage("wyzieSearchResult", function(d) {
+  document.getElementById("wz-search-btn").disabled = false;
+  if (d.error) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: ' + htmlEsc(d.error) + '</div>'; return; }
+  wzCache = d.results || [];
+  if (!wzCache.length) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">No results. Try a different language.</div>'; return; }
+  renderWz();
+});
+function renderWz() {
+  var html = '<div class="sub-none-row"><span>No subtitle</span><button class="sub-none-btn' + (wzLoadedIdx === -1 ? " on" : "") + '" onclick="doWzNone()">Select</button></div>';
+  wzCache.forEach(function(item, i) {
+    var rel  = item.release || item.fileName || item.media || "Unknown";
+    var lang = item.display || (item.language || "?").toUpperCase();
+    var fmt  = (item.format || "srt").toUpperCase();
+    var src  = item.source || "";
+    var url  = item.url || "";
+    var dis  = url ? "" : " disabled";
+    html += '<div class="sub-row"><div class="sub-info"><div class="sub-name" title="' + htmlEsc(rel) + '">' + htmlEsc(rel) + '</div><div class="sub-meta">' + htmlEsc(lang) + " · " + fmt + (src ? " · " + htmlEsc(src) : "") + '</div></div>' +
+      '<button class="sub-load' + (wzLoadedIdx === i ? " loaded" : "") + '"' + dis + ' onclick="doWzLoad(' + i + ')">' + (wzLoadedIdx === i ? "✓ Loaded" : wzPendingIdx === i ? "…" : "Load") + '</button></div>';
+  });
+  document.getElementById("wz-results").innerHTML = html;
+}
+function doWzLoad(idx) {
+  var item = wzCache[idx]; if (!item || !item.url) return;
+  wzPendingIdx = idx; renderWz();
+  iina.postMessage("loadWyzieSub", { url: item.url, fileName: item.fileName || item.release || "" });
+}
+iina.onMessage("wyzieLoadResult", function(d) {
+  if (d.success) {
+    wzLoadedIdx = wzPendingIdx; wzPendingIdx = null; renderWz();
+    document.getElementById("wz-clear-row").style.display = "block";
+  } else {
+    wzPendingIdx = null; renderWz();
+    document.getElementById("wz-results").insertAdjacentHTML("afterbegin", '<div class="msg" style="padding:4px 0;color:rgba(255,100,100,.8)">Load failed: ' + htmlEsc(d.error || "unknown") + '</div>');
+  }
+});
+function doWzNone() { wzLoadedIdx = -1; wzPendingIdx = null; iina.postMessage("clearSub", {}); renderWz(); document.getElementById("wz-clear-row").style.display = "none"; }
+function doClearSub() { wzLoadedIdx = null; wzPendingIdx = null; iina.postMessage("clearSub", {}); document.getElementById("wz-clear-row").style.display = "none"; renderWz(); }
+
+// ── OpenSubtitles.com ─────────────────────────────────────────
+var OSK = localStorage.getItem("epinfo_osub_key")   || "";
+var OST = localStorage.getItem("epinfo_osub_token") || "";
+var osCache = [], osLoadedIdx = null, osPendingIdx = null;
+
+(function() {
+  if (OSK) { document.getElementById("os-key-box").style.display = "none"; document.getElementById("os-key-ok").style.display = "flex"; }
+  else { document.getElementById("os-login-btn").disabled = true; document.getElementById("os-login-btn").style.opacity = "0.35"; document.getElementById("os-key-required-note").style.display = "block"; }
+  // Login form is always visible in HTML — only hide if already logged in
+  if (OST) {
+    var u = JSON.parse(localStorage.getItem("epinfo_osub_user") || "{}");
+    if (u.username) {
+      document.getElementById("os-login-form").style.display = "none";
+      document.getElementById("os-logged").style.display = "flex";
+      document.getElementById("os-uname").textContent = u.username;
+    }
+  }
+  if (OSK && document.getElementById("wz-search-btn")) document.getElementById("os-search-btn").disabled = false;
+})();
+
+function doSaveOsKey() {
+  var key = (document.getElementById("os-key-input").value || "").trim();
+  var msg = document.getElementById("os-key-msg");
+  if (!key) { msg.style.color = "#ff453a"; msg.textContent = "Paste key first."; return; }
+  localStorage.setItem("epinfo_osub_key", key); OSK = key;
+  msg.style.color = "#30d158"; msg.textContent = "✓ Saved!";
+  setTimeout(function() {
+    document.getElementById("os-key-box").style.display = "none";
+    document.getElementById("os-key-ok").style.display = "flex";
+    document.getElementById("os-search-btn").disabled = false;
+    // API key is now set — enable login
+    var loginBtn = document.getElementById("os-login-btn");
+    loginBtn.disabled = false; loginBtn.style.opacity = "1";
+    document.getElementById("os-key-required-note").style.display = "none";
+  }, 700);
+}
+function doChangeOsKey() {
+  OSK = ""; OST = "";
+  localStorage.removeItem("epinfo_osub_key"); localStorage.removeItem("epinfo_osub_token"); localStorage.removeItem("epinfo_osub_user");
+  document.getElementById("os-key-input").value = ""; document.getElementById("os-key-msg").textContent = "";
+  document.getElementById("os-key-box").style.display = "block"; document.getElementById("os-key-ok").style.display = "none";
+  // Login form stays visible — only hide the "logged in" banner
+  document.getElementById("os-logged").style.display = "none";
+  document.getElementById("os-login-form").style.display = "block";
+  document.getElementById("os-search-btn").disabled = true;
+  // No key — disable login button and show note
+  var loginBtn = document.getElementById("os-login-btn");
+  loginBtn.disabled = true; loginBtn.style.opacity = "0.35";
+  document.getElementById("os-key-required-note").style.display = "block";
+}
+function doOsLogin() {
+  var user = (document.getElementById("os-user").value || "").trim();
+  var pass = (document.getElementById("os-pass").value || "").trim();
+  var msg  = document.getElementById("os-login-msg");
+  var btn  = document.getElementById("os-login-btn");
+  if (!user || !pass) { msg.style.color = "#ff453a"; msg.textContent = "Enter username and password."; return; }
+  msg.style.color = "rgba(255,255,255,.4)"; msg.textContent = "Signing in…"; btn.disabled = true;
+  iina.postMessage("osLogin", { key: OSK, username: user, password: pass });
+}
+iina.onMessage("osLoginResult", function(d) {
+  document.getElementById("os-login-btn").disabled = false;
+  var msg = document.getElementById("os-login-msg");
+  if (d.success) {
+    OST = d.token; localStorage.setItem("epinfo_osub_token", OST); localStorage.setItem("epinfo_osub_user", JSON.stringify({ username: d.username }));
+    msg.style.color = "#30d158"; msg.textContent = "✓ Signed in!";
+    setTimeout(function() { document.getElementById("os-login-form").style.display = "none"; document.getElementById("os-logged").style.display = "flex"; document.getElementById("os-uname").textContent = d.username; }, 700);
+  } else { msg.style.color = "#ff453a"; msg.textContent = "✗ " + (d.error || "Failed"); }
+});
+function doOsLogout() {
+  OST = ""; localStorage.removeItem("epinfo_osub_token"); localStorage.removeItem("epinfo_osub_user");
+  document.getElementById("os-logged").style.display = "none"; document.getElementById("os-login-form").style.display = "block";
+  document.getElementById("os-login-msg").textContent = "";
+}
+function resetOs() {
+  osCache = []; osLoadedIdx = null; osPendingIdx = null;
+  document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Set API Key above first.</div>';
+}
+function doOsSearch() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  if (!saved || !OSK) { document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Need episode + API Key.</div>'; return; }
+  var match = saved.code ? saved.code.match(/S(\d+)E(\d+)/i) : null;
+  document.getElementById("os-search-btn").disabled = true;
+  document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>Searching…</div>';
+  iina.postMessage("searchSubs", { key: OSK, token: OST, query: saved.showTitle || saved.epTitle || "", lang: (document.getElementById("os-lang").value || "en").trim() || "en", isMovie: saved.isMovie || false, season: match ? parseInt(match[1]) : null, episode: match ? parseInt(match[2]) : null });
+}
+iina.onMessage("subSearchResult", function(d) {
+  document.getElementById("os-search-btn").disabled = false;
+  if (d.error) { document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: ' + htmlEsc(d.error) + '</div>'; return; }
+  osCache = d.results || [];
+  if (!osCache.length) { document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">No results.</div>'; return; }
+  renderOs();
+});
+function renderOs() {
+  var html = '<div class="sub-none-row"><span>No subtitle</span><button class="sub-none-btn' + (osLoadedIdx === -1 ? " on" : "") + '" onclick="doOsNone()">Select</button></div>';
+  osCache.forEach(function(item, i) {
+    var a = item.attributes || {}, files = a.files || [], fid = files.length ? files[0].file_id : null;
+    var rel = a.release || (a.feature_details && a.feature_details.title) || "Unknown";
+    var lang = (a.language || "?").toUpperCase(), fmt = (a.format || "srt").toUpperCase();
+    var upl = a.uploader && a.uploader.name ? a.uploader.name : "";
+    var dis = !fid ? " disabled" : "";
+    html += '<div class="sub-row"><div class="sub-info"><div class="sub-name" title="' + htmlEsc(rel) + '">' + htmlEsc(rel) + '</div><div class="sub-meta">' + lang + " · " + fmt + (upl ? " · " + htmlEsc(upl) : "") + '</div></div><button class="sub-load' + (osLoadedIdx === i ? " loaded" : "") + '"' + dis + ' onclick="doOsLoad(' + i + ')">' + (osLoadedIdx === i ? "✓ Loaded" : osPendingIdx === i ? "…" : "Load") + '</button></div>';
+  });
+  document.getElementById("os-results").innerHTML = html;
+}
+function doOsLoad(idx) {
+  var item = osCache[idx]; if (!item) return;
+  var a = item.attributes || {}, files = a.files || [];
+  if (!files.length || !files[0].file_id) return;
+  osPendingIdx = idx; renderOs();
+  iina.postMessage("downloadSub", { key: OSK, token: OST, file_id: files[0].file_id });
+}
+iina.onMessage("subDownloadResult", function(d) {
+  if (d.success) {
+    osLoadedIdx = osPendingIdx; osPendingIdx = null; renderOs();
+    if (typeof d.remaining === "number") {
+      var r = document.createElement("div"); r.style.cssText = "font-size:10px;color:rgba(255,255,255,.3);text-align:right;margin-top:4px"; r.textContent = d.remaining + " downloads left today"; document.getElementById("os-results").appendChild(r);
+    }
+  } else { osPendingIdx = null; renderOs(); document.getElementById("os-results").insertAdjacentHTML("afterbegin", '<div class="msg" style="padding:4px 0;color:rgba(255,100,100,.8)">Failed: ' + htmlEsc(d.error || "unknown") + '</div>'); }
+});
+function doOsNone() { osLoadedIdx = -1; osPendingIdx = null; iina.postMessage("clearSub", {}); renderOs(); }
 
 </script>
 </body>
