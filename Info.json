@@ -1,9 +1,11 @@
 {
   "name": "Episode Info",
-  "identifier": "com.user.episodeinfo2",
+  "identifier": "com.Zain-Imam.episodeinfo",
   "version": "1.0.0",
+  "ghRepo": "Zain-Imam/iina-episode-info",
+  "ghVersion": 1,
   "author": {
-    "name": "IINA User"
+    "name": "Zain_Imam"
   },
   "entry": "main.js",
   "description": "Search for episode info in the sidebar. Displays on pause.",
