@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  :root { --bg-opacity: 0.72; }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html, body {
+    width:100vw; height:100vh;
+    background:transparent;
+    overflow:hidden;
+    pointer-events:none;
+    /* Match original font stack exactly */
+    font-family:'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;
+    /* Fix the "outline" look on macOS — WebKit subpixel AA on dark backgrounds
+       causes text to look like it has a white stroke. Antialiased removes it. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  #wrap {
+    position:fixed; top:50%; left:0; right:0;
+    transform:translateY(-50%);
+    pointer-events:none;
+    display:none; /* hidden until showData arrives */
+  }
+
+  /* Full-width card */
+  #card {
+    width:100%; position:relative;
+    background:rgba(10,10,10,var(--bg-opacity));
+    padding:28px 5%;
+    display:flex; align-items:center; gap:40px;
+  }
+
+  /* ── Text column ───────────────────────────────────────────── */
+  #text { flex:1; min-width:0; }
+
+  .sn {
+    font-size:13px; font-weight:600; letter-spacing:.18em;
+    text-transform:uppercase; color:rgba(255,255,255,0.45); margin-bottom:10px;
+  }
+  .et {
+    font-size:38px; font-weight:700; color:#fff;
+    line-height:1.15; margin-bottom:12px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .mt {
+    display:flex; align-items:center; gap:0;
+    font-size:15px; color:rgba(255,255,255,0.55); margin-bottom:14px;
+  }
+  .mt span+span::before { content:' · '; color:rgba(255,255,255,0.3); margin:0 6px; }
+  .rat { color:#f5c518; font-weight:600; }
+  .ov {
+    font-size:16px; color:rgba(255,255,255,0.65);
+    line-height:1.6;
+    display:-webkit-box; -webkit-line-clamp:2;
+    -webkit-box-orient:vertical; overflow:hidden;
+  }
+
+  /* ── Poster column ─────────────────────────────────────────── */
+  #poster {
+    flex-shrink:0; width:14vw; max-width:200px; min-width:110px;
+    align-self:center;
+  }
+  #poster img {
+    width:100%; border-radius:8px; display:block;
+    box-shadow:0 6px 28px rgba(0,0,0,0.7);
+    opacity:0.92;
+  }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <div id="card">
+    <div id="text">
+      <div class="sn" id="show-name"></div>
+      <div class="et" id="ep-title"></div>
+      <div class="mt" id="meta-row"></div>
+      <div class="ov"  id="overview"></div>
+    </div>
+
+    <div id="poster"></div>
+  </div>
+</div>
+
+<script>
+// ── Helper: HTML-escape text going into innerHTML ─────────────
+function esc(s) {
+  return String(s || "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Receive episode data from main.js ─────────────────────────
+iina.onMessage("showData", function(d) {
+  // Update background shade first
+  if (typeof d.bgOpacity === "number") {
+    document.documentElement.style.setProperty("--bg-opacity", d.bgOpacity);
+  }
+
+  // Show title
+  document.getElementById("show-name").textContent = d.showTitle || "";
+
+  // Episode title
+  document.getElementById("ep-title").textContent = d.epTitle || "";
+
+  // Meta row: code · airDate · ★ rating
+  var parts = [];
+  if (d.code)    parts.push("<span>" + esc(d.code) + "</span>");
+  if (d.airDate) parts.push("<span>" + esc(d.airDate) + "</span>");
+  if (d.rating)  parts.push('<span class="rat">&#9733; ' + esc(d.rating) + "</span>");
+  document.getElementById("meta-row").innerHTML = parts.join("");
+
+  // Overview
+  document.getElementById("overview").textContent = d.overview || "";
+
+  // Poster
+  var posterEl = document.getElementById("poster");
+  if (d.posterUrl) {
+    posterEl.innerHTML = "<img src='" + esc(d.posterUrl) + "' />";
+  } else {
+    posterEl.innerHTML = "";
+  }
+
+  // Make visible
+  document.getElementById("wrap").style.display = "block";
+});
+
+// ── Live opacity update from sidebar slider ───────────────────
+iina.onMessage("setBgOpacity", function(d) {
+  if (typeof d.value === "number") {
+    document.documentElement.style.setProperty("--bg-opacity", d.value);
+  }
+});
+</script>
+</body>
+</html>
