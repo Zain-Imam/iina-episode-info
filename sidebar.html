@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, 'Helvetica Neue', sans-serif;
+    font-size: 13px; color: #ccc; background: transparent;
+    padding: 12px; overflow-x: hidden;
+  }
+
+  /* Saved card */
+  #saved {
+    display: none; background: rgba(229,9,20,.1);
+    border: 1px solid rgba(229,9,20,.28); border-radius: 8px;
+    padding: 12px 12px 10px; margin-bottom: 12px;
+  }
+  #saved.on { display: block; }
+  #s-show {
+    font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: rgba(255,255,255,.45); margin-bottom: 3px;
+  }
+  #s-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; line-height: 1.3; }
+  #s-meta  { font-size: 11px; color: rgba(255,255,255,.45); margin-bottom: 8px; }
+  #s-meta .rat { color: #f5c518; }
+
+  /* Description with show more */
+  #s-desc { font-size: 12px; color: rgba(255,255,255,.55); line-height: 1.55; margin-bottom: 6px; }
+  #s-desc.collapsed {
+    display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  #show-more {
+    display: none; font-size: 11px; color: rgba(229,9,20,.9);
+    cursor: pointer; margin-bottom: 8px; background: none; border: none;
+    padding: 0; font-family: inherit;
+  }
+  #show-more:hover { color: #e50914; }
+
+  #clear-btn {
+    display: block; width: 100%;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    color: rgba(255,255,255,.5); font-size: 11px; padding: 5px;
+    border-radius: 5px; cursor: pointer; text-align: center;
+  }
+  #clear-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+  /* Search */
+  .row { display: flex; gap: 6px; margin-bottom: 10px; }
+  #q {
+    flex: 1; background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 6px; padding: 7px 10px;
+    color: #fff; font-size: 13px; font-family: inherit; outline: none;
+  }
+  #q::placeholder { color: rgba(255,255,255,.3); }
+  #q:focus { border-color: rgba(255,255,255,.28); }
+  #go {
+    background: #c0392b; border: none; color: #fff;
+    font-size: 12px; font-weight: 600; padding: 0 13px;
+    border-radius: 6px; cursor: pointer;
+  }
+  #go:hover { background: #e50914; }
+  #go:disabled { background: rgba(192,57,43,.3); cursor: default; }
+
+  /* Results */
+  .rrow {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .rrow:last-child { border-bottom: none; }
+  .rposter {
+    width: 28px; height: 40px; border-radius: 3px;
+    object-fit: cover; background: rgba(255,255,255,.08); flex-shrink: 0;
+  }
+  .ri { flex: 1; min-width: 0; }
+  .rn { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rs { font-size: 11px; color: rgba(255,255,255,.38); margin-top: 1px; }
+  .pb {
+    flex-shrink: 0; background: rgba(255,255,255,.09);
+    border: 1px solid rgba(255,255,255,.16);
+    color: rgba(255,255,255,.78); font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 5px; cursor: pointer; transition: all .15s;
+  }
+  .pb:hover { background: #e50914; border-color: #e50914; color: #fff; }
+
+  /* Pickers */
+  .sec { margin-top: 10px; }
+  .sl { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 6px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pill {
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.11);
+    color: rgba(255,255,255,.6); font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; transition: all .15s;
+  }
+  .pill:hover { background: rgba(255,255,255,.14); color: #fff; }
+  .pill.on { background: #e50914; border-color: #e50914; color: #fff; }
+
+  /* Status */
+  .msg { padding: 12px 0; text-align: center; color: rgba(255,255,255,.3); font-size: 12px; }
+  .ok  { padding: 10px 0; text-align: center; color: rgba(80,200,80,.9); font-size: 12px; font-weight: 600; }
+  .sp  {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,.1); border-top-color: rgba(255,255,255,.5);
+    border-radius: 50%; animation: sp .7s linear infinite;
+    margin-right: 5px; vertical-align: middle;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="ov-status-box" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:8px 12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px">Overlay Status</div><div id="ov-st" style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.4">Waiting...</div></div>
+
+<!-- Saved card with full details -->
+<div id="saved">
+  <div id="s-show"></div>
+  <div id="s-title"></div>
+  <div id="s-meta"></div>
+  <div id="s-desc" class="collapsed"></div>
+  <button id="show-more" onclick="toggleDesc()">Show more ▾</button>
+  <button id="clear-btn" onclick="doClear()">✕  Clear selection</button>
+</div>
+
+<!-- API Key Section -->
+<div id="api-section" style="margin-bottom:12px">
+  <div style="background:rgba(255,165,0,0.08);border:1px solid rgba(255,165,0,0.35);border-radius:8px;padding:11px 12px">
+    <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,165,0,0.85);margin-bottom:5px">&#9888; TMDB API Key Required</div>
+    <p style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:8px">Get a free key at <strong style="color:rgba(255,255,255,0.7)">themoviedb.org &rarr; Settings &rarr; API</strong></p>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px">
+      <input type="password" id="api-input" placeholder="Paste API key here&hellip;" onkeydown="if(event.key==='Enter')doSaveKey()"
+        style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:6px;padding:6px 9px;color:#fff;font-size:12px;font-family:inherit;outline:none">
+      <button onclick="doSaveKey()" style="background:#c0392b;border:none;color:#fff;font-size:11px;font-weight:600;padding:6px 13px;border-radius:6px;cursor:pointer">Save</button>
+    </div>
+    <div id="api-msg" style="font-size:11px;min-height:15px;color:rgba(255,255,255,0.4)"></div>
+  </div>
+</div>
+<div id="api-ok" style="display:none;background:rgba(48,209,88,0.09);border:1px solid rgba(48,209,88,0.3);border-radius:7px;padding:6px 12px;margin-bottom:12px;font-size:11px;display:none;justify-content:space-between;align-items:center">
+  <span style="color:rgba(48,209,88,0.9)">&#10003; API key active</span>
+  <button onclick="doChangeKey()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;padding:0">Change</button>
+</div>
+
+<!-- Search -->
+<div class="row">
+  <input id="q" type="text" placeholder="Show or movie name…"
+         onkeydown="if(event.key==='Enter'&&!this.disabled) doSearch()" />
+  <button id="go" onclick="doSearch()">GO</button>
+</div>
+
+<div id="panel"><div class="msg">Search above to find a show or movie.</div></div>
+
+<script>
+var TK = localStorage.getItem("epinfo_tmdb_key") || "";
+var IB = "https://image.tmdb.org/t/p/w92";
+
+var selShow      = null;
+var selSeason    = null;
+var descExpanded = false;
+
+// FIX: Store episodes in a plain JS array and reference by index.
+// Previously, episodes were JSON.stringify'd + encodeURIComponent'd
+// and embedded directly in onclick="pickEp('...')". Any episode whose
+// name or overview contained a " character would corrupt the HTML
+// attribute and silently break the button. Index-based lookup is
+// immune to all character escaping issues.
+var episodeCache = [];
+var seasonPosterUrl = "";
+
+// ── File changed ──────────────────────────────────────────────
+// fileChanged handled below
+
+function resetPanel() {
+  document.getElementById("panel").innerHTML =
+    '<div class="msg">Search above to find a show or movie.</div>';
+}
+
+// ── Saved card ────────────────────────────────────────────────
+function showSaved(info) {
+  document.getElementById("s-show").textContent  = info.showTitle || "";
+  document.getElementById("s-title").textContent = info.epTitle   || "";
+
+  var m = [];
+  if (info.code)    m.push(info.code);
+  if (info.airDate) m.push(info.airDate);
+  if (info.rating)  m.push('<span class="rat">&#9733; ' + info.rating + '</span>');
+  document.getElementById("s-meta").innerHTML = m.join(" &nbsp;·&nbsp; ");
+
+  var desc    = info.overview || "";
+  var descEl  = document.getElementById("s-desc");
+  var moreBtn = document.getElementById("show-more");
+
+  descEl.textContent = desc;
+  descExpanded = false;
+  descEl.classList.add("collapsed");
+
+  moreBtn.style.display = "none";
+  moreBtn.textContent = "Show more ▾";
+  setTimeout(function() {
+    if (descEl.scrollHeight > descEl.clientHeight + 2) {
+      moreBtn.style.display = "block";
+    }
+  }, 50);
+
+  document.getElementById("saved").classList.add("on");
+}
+
+function toggleDesc() {
+  var descEl  = document.getElementById("s-desc");
+  var moreBtn = document.getElementById("show-more");
+  descExpanded = !descExpanded;
+  if (descExpanded) {
+    descEl.classList.remove("collapsed");
+    moreBtn.textContent = "Show less ▴";
+  } else {
+    descEl.classList.add("collapsed");
+    moreBtn.textContent = "Show more ▾";
+  }
+}
+
+function doClear() {
+  try{localStorage.removeItem("epinfo_ep");}catch(e){}
+  document.getElementById("saved").classList.remove("on");
+  selShow      = null;
+  selSeason    = null;
+  descExpanded = false;
+  episodeCache = [];
+  iina.postMessage("clearEpisode", {});
+  resetPanel();
+}
+
+// ── Search ────────────────────────────────────────────────────
+function setLoading(on) {
+  document.getElementById("go").disabled = on;
+  document.getElementById("q").disabled  = on;
+}
+
+async function doSearch() {
+  var q = (document.getElementById("q").value || "").trim();
+  if (!q) return;
+  setLoading(true);
+  document.getElementById("panel").innerHTML =
+    '<div class="msg"><span class="sp"></span>Searching…</div>';
+  try {
+    var r    = await fetch("https://api.themoviedb.org/3/search/multi?api_key=" + TK +
+      "&query=" + encodeURIComponent(q) + "&include_adult=false");
+    var data = await r.json();
+    var list = (data.results||[])
+      .filter(function(x){ return x.media_type==="tv"||x.media_type==="movie"; })
+      .slice(0,8);
+
+    if (!list.length) {
+      document.getElementById("panel").innerHTML = '<div class="msg">No results found.</div>';
+      setLoading(false); return;
+    }
+
+    // FIX: Store search results in an array; onclick uses index only.
+    // This avoids any HTML/JSON escaping issues with show titles.
+    var searchCache = list;
+    var html = "";
+    list.forEach(function(item, i) {
+      var title = item.title || item.name || "Untitled";
+      var year  = (item.release_date||item.first_air_date||"").slice(0,4);
+      var img   = item.poster_path
+        ? '<img class="rposter" src="'+IB+item.poster_path+'" />'
+        : '<div class="rposter"></div>';
+      html += '<div class="rrow">' + img +
+        '<div class="ri"><div class="rn">'+htmlEsc(title)+'</div>' +
+        '<div class="rs">'+(item.media_type==="tv"?"TV Series":"Movie")+(year?" · "+year:"")+'</div></div>' +
+        '<button class="pb" onclick="pickItemByIndex('+i+')">Pick</button>' +
+      '</div>';
+    });
+    document.getElementById("panel").innerHTML = html;
+
+    // Attach search cache to the panel so pickItemByIndex can reach it
+    document.getElementById("panel")._searchCache = searchCache;
+  } catch(e) {
+    document.getElementById("panel").innerHTML = '<div class="msg">Search failed.</div>';
+  }
+  setLoading(false);
+}
+
+// ── HTML escape helper ────────────────────────────────────────
+// Used whenever text goes into innerHTML (not textContent).
+function htmlEsc(s) {
+  return String(s||"")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+}
+
+// ── Pick ──────────────────────────────────────────────────────
+function pickItemByIndex(i) {
+  var cache = document.getElementById("panel")._searchCache;
+  if (!cache || !cache[i]) return;
+  pickItem(cache[i]);
+}
+
+function pickItem(item) {
+  selShow   = item;
+  selSeason = null;
+  episodeCache = [];
+
+  if (item.media_type === "movie") {
+    document.getElementById("panel").innerHTML =
+      '<div class="msg"><span class="sp"></span>Loading…</div>';
+    fetch("https://api.themoviedb.org/3/movie/"+item.id+"?api_key="+TK)
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var info = { showTitle:"Movie", epTitle:d.title,
+          code: d.release_date?d.release_date.slice(0,4):"",
+          airDate:d.release_date||"", isStream:false,
+          rating:d.vote_average?d.vote_average.toFixed(1):"",
+          overview:d.overview||"",
+          posterUrl:d.poster_path ? "https://image.tmdb.org/t/p/w500" + d.poster_path : "" };
+        saveSelection(info);
+      }).catch(function(){
+        document.getElementById("panel").innerHTML='<div class="msg">Failed to load.</div>';
+      });
+    return;
+  }
+
+  document.getElementById("panel").innerHTML =
+    '<div class="msg"><span class="sp"></span>Loading seasons…</div>';
+  fetch("https://api.themoviedb.org/3/tv/"+item.id+"?api_key="+TK)
+    .then(function(r){return r.json();})
+    .then(function(show){
+      selShow._name    = show.name;
+      selShow._seasons = (show.seasons||[]).filter(function(s){return s.season_number>0;});
+      renderSeasons();
+    }).catch(function(){
+      document.getElementById("panel").innerHTML='<div class="msg">Failed to load seasons.</div>';
+    });
+}
+
+function renderSeasons() {
+  if (!selShow||!selShow._seasons) return;
+  var pills = "";
+  selShow._seasons.forEach(function(s){
+    pills += '<button class="pill'+(selSeason===s.season_number?" on":"")+
+      '" onclick="pickSeason('+s.season_number+')">S'+
+      String(s.season_number).padStart(2,"0")+'</button>';
+  });
+  document.getElementById("panel").innerHTML =
+    '<div class="sec"><div class="sl">Season</div><div class="pills">'+pills+'</div></div>' +
+    '<div id="ep"></div>';
+  if (selSeason!==null) renderEps(selSeason);
+}
+
+function pickSeason(n){ selSeason=n; renderSeasons(); }
+
+function renderEps(sNum) {
+  var el = document.getElementById("ep");
+  if (!el) return;
+  el.innerHTML = '<div class="msg"><span class="sp"></span>Loading episodes…</div>';
+  fetch("https://api.themoviedb.org/3/tv/"+selShow.id+"/season/"+sNum+"?api_key="+TK)
+    .then(function(r){return r.json();})
+    .then(function(s){
+      // Store season poster for overlay
+      seasonPosterUrl = s.poster_path
+        ? "https://image.tmdb.org/t/p/w500" + s.poster_path
+        : (selShow && selShow.poster_path ? "https://image.tmdb.org/t/p/w500" + selShow.poster_path : "");
+      // FIX: Cache episodes in a plain JS array. Buttons use integer
+      // indices only — no JSON or encoding in onclick attributes.
+      // Previously, ep.name/ep.overview with " characters would corrupt
+      // the onclick HTML and silently disable specific episode buttons.
+      episodeCache = s.episodes || [];
+
+      var pills = "";
+      episodeCache.forEach(function(ep, i){
+        var label = "E" + String(ep.episode_number).padStart(2,"0");
+        // Use htmlEsc for tooltip; no data at all in onclick
+        pills += '<button class="pill" title="'+htmlEsc(ep.name||"")+
+          '" onclick="pickEp('+i+')">'+label+'</button>';
+      });
+      el.innerHTML =
+        '<div class="sec" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)">' +
+        '<div class="sl">Episode</div><div class="pills">'+pills+'</div></div>';
+    }).catch(function(){ el.innerHTML='<div class="msg">Failed to load episodes.</div>'; });
+}
+
+// FIX: pickEp now takes an integer index, not an encoded JSON string.
+function pickEp(idx) {
+  var ep = episodeCache[idx];
+  if (!ep) return;
+  var info = {
+    isStream:  false,
+    showTitle: selShow._name||selShow.name||"",
+    epTitle:   ep.name||("Episode "+ep.episode_number),
+    code:      "S"+String(selSeason).padStart(2,"0")+"E"+String(ep.episode_number).padStart(2,"0"),
+    airDate:   ep.air_date||"",
+    rating:    ep.vote_average?ep.vote_average.toFixed(1):"",
+    overview:  ep.overview||"",
+    posterUrl: seasonPosterUrl || (selShow && selShow.poster_path ? "https://image.tmdb.org/t/p/w500" + selShow.poster_path : "")
+  };
+  saveSelection(info);
+}
+
+function saveSelection(info) {
+  try{localStorage.setItem("epinfo_ep", JSON.stringify(info));}catch(e){}
+  showSaved(info);
+  iina.postMessage("episodeSelected", info);
+  document.getElementById("panel").innerHTML =
+    '<div class="ok">✓ Saved — will show on next pause</div>' +
+    '<div class="msg" style="padding-top:2px">Search again to change episode</div>';
+  selShow      = null;
+  selSeason    = null;
+  episodeCache = [];
+}
+
+iina.onMessage("overlayStatus", function(d){
+  var el=document.getElementById("ov-st");
+  if(el) el.textContent = d.text||"";
+});
+iina.onMessage("fileChanged", function(){
+  try{localStorage.removeItem("epinfo_ep");}catch(e){}
+  doClear();
+  document.getElementById("q").value="";
+  selShow=null; selSeason=null; episodeCache=[]; resetPanel();
+});
+
+// ── API Key ───────────────────────────────────────────────────
+(function initApiKey() {
+  var key = localStorage.getItem("epinfo_tmdb_key") || "";
+  if (key) {
+    TK = key;
+    showApiOk();
+  } else {
+    showApiForm();
+  }
+})();
+
+function showApiOk() {
+  document.getElementById("api-section").style.display = "none";
+  var ok = document.getElementById("api-ok");
+  ok.style.display = "flex";
+  document.getElementById("go").disabled = false;
+  document.getElementById("q").disabled = false;
+  document.getElementById("q").placeholder = "Show or movie name…";
+}
+
+function showApiForm() {
+  document.getElementById("api-section").style.display = "block";
+  document.getElementById("api-ok").style.display = "none";
+  document.getElementById("go").disabled = true;
+  document.getElementById("q").disabled = true;
+  document.getElementById("q").placeholder = "Enter API key above first…";
+}
+
+function doSaveKey() {
+  var key = (document.getElementById("api-input").value || "").trim();
+  var msg = document.getElementById("api-msg");
+  if (!key) { msg.style.color="#ff453a"; msg.textContent="Please paste your key."; return; }
+  msg.style.color="rgba(255,255,255,0.4)"; msg.textContent="Verifying…";
+  fetch("https://api.themoviedb.org/3/configuration?api_key=" + encodeURIComponent(key))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.images) {
+        localStorage.setItem("epinfo_tmdb_key", key);
+        TK = key;
+        msg.style.color="#30d158"; msg.textContent="✓ Valid key saved!";
+        setTimeout(showApiOk, 700);
+      } else {
+        msg.style.color="#ff453a"; msg.textContent="✗ Invalid key — please check and retry.";
+      }
+    })
+    .catch(function(){
+      localStorage.setItem("epinfo_tmdb_key", key);
+      TK = key;
+      msg.style.color="#ff9f0a"; msg.textContent="⚠ Saved (couldn’t verify — no network)";
+      setTimeout(showApiOk, 1200);
+    });
+}
+
+function doChangeKey() {
+  document.getElementById("api-input").value = TK;
+  document.getElementById("api-msg").textContent = "";
+  showApiForm();
+}
+
+</script>
+</body>
+</html>

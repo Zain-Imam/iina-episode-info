@@ -1,0 +1,22 @@
+{
+  "name": "Episode Info",
+  "identifier": "com.user.episodeinfo2",
+  "version": "1.0.0",
+  "author": {
+    "name": "IINA User"
+  },
+  "entry": "main.js",
+  "description": "Search for episode info in the sidebar. Displays on pause.",
+  "permissions": [
+    "show-osd",
+    "video-overlay",
+    "network-request"
+  ],
+  "allowedDomains": [
+    "api.themoviedb.org",
+    "image.tmdb.org"
+  ],
+  "sidebarTab": {
+    "name": "Episode Info"
+  }
+}
