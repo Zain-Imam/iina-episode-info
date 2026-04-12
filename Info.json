@@ -1,14 +1,15 @@
 {
   "name": "Episode Info",
-  "identifier": "com.Zain-Imam.episodeinfo",
-  "version": "1.0.0",
+  "identifier": "com.user.episodeinfo2",
+  "version": "1.1.0",
   "ghRepo": "Zain-Imam/iina-episode-info",
-  "ghVersion": 1,
+  "ghVersion": 2,
   "author": {
-    "name": "Zain_Imam"
+    "name": "Zain Imam",
+    "url": "https://github.com/Zain-Imam"
   },
   "entry": "main.js",
-  "description": "Search for episode info in the sidebar. Displays on pause.",
+  "description": "Episode/movie info overlay on pause. With additional subtitle support.",
   "permissions": [
     "show-osd",
     "video-overlay",
@@ -16,7 +17,10 @@
   ],
   "allowedDomains": [
     "api.themoviedb.org",
-    "image.tmdb.org"
+    "image.tmdb.org",
+    "sub.wyzie.ru",
+    "sub.wyzie.io",
+    "api.opensubtitles.com"
   ],
   "sidebarTab": {
     "name": "Episode Info"
