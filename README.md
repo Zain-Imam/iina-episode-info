@@ -5,6 +5,8 @@ overlay when you pause. Works with any local video file.
 
 ## Preview
 <img width="1431" height="737" alt="image" src="https://github.com/user-attachments/assets/c55ec08a-937b-424d-8142-c357da531a67" />
+<img width="1432" height="783" alt="image" src="https://github.com/user-attachments/assets/08f7735c-9ce8-4f05-8e08-e6ef1da621fa" />
+
 
 
 ## Installation
