@@ -1,71 +1,15 @@
 // ============================================================
-// IINA Plugin: Episode Info  v2.3.0
-// identifier: com.user.episodeinfo2
+// IINA Plugin: Episode Info  v1.1.0
 // ============================================================
 
 const { core, event, overlay, sidebar } = iina;
 
-var sidebarLoaded  = false;
-var currentEpisode = null;
-var pauseTimer     = null;
-
-var STYLE = [
-  "*{margin:0;padding:0;box-sizing:border-box}",
-  "html,body{width:100vw;height:100vh;background:transparent;",
-  "overflow:hidden;pointer-events:none;",
-  "font-family:'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif}",
-
-  "#wrap{",
-  "  position:fixed;top:50%;left:0;right:0;",  // true vertical center
-  "  transform:translateY(-50%);",
-  "  pointer-events:none;",
-  "}",
-
-  // Flex row: text left, poster right
-  "#card{",
-  "  width:100%;",
-  "  background:rgba(10,10,10,0.72);",
-  "  padding:28px 5%;",
-  "  display:flex;",
-  "  align-items:center;",
-  "  gap:40px;",
-  "}",
-
-  // Text column fills remaining space
-  "#text{flex:1;min-width:0}",
-
-  ".sn{font-size:13px;font-weight:600;letter-spacing:.18em;",
-  "text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:10px}",
-
-  ".et{font-size:38px;font-weight:700;color:#fff;",
-  "line-height:1.15;margin-bottom:12px;",
-  "white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-
-  ".mt{display:flex;align-items:center;gap:0;",
-  "font-size:15px;color:rgba(255,255,255,0.55);margin-bottom:14px}",
-  ".mt span+span::before{content:' · ';color:rgba(255,255,255,0.3);margin:0 6px}",
-  ".rat{color:#f5c518;font-weight:600}",
-
-  ".ov{font-size:14px;color:rgba(255,255,255,0.65);",
-  "line-height:1.65;",
-  "display:-webkit-box;-webkit-line-clamp:2;",
-  "-webkit-box-orient:vertical;overflow:hidden}",
-
-  // Poster column — fixed width, shrinks on narrow screens
-  "#poster{",
-  "  flex-shrink:0;width:14vw;max-width:200px;min-width:110px;",
-  "  align-self:center;",
-  "}",
-  "#poster img{",
-  "  width:100%;border-radius:8px;display:block;",
-  "  box-shadow:0 6px 28px rgba(0,0,0,0.7);",
-  "  opacity:0.92;",
-  "}"
-].join("");
-
-function esc(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
+var sidebarLoaded    = false;
+var currentEpisode   = null;
+var pauseTimer       = null;
+var overlayVisible   = false;
+var overlayBgOpacity = 0.72;
+var overlayEnabled   = true;   // toggled from sidebar, persisted in sidebar's localStorage
 
 function log(msg) {
   iina.console.log("[EpInfo] " + msg);
@@ -73,45 +17,162 @@ function log(msg) {
 }
 
 function showOverlay(d) {
-  var metaParts = [];
-  if (d.code)    metaParts.push("<span>" + esc(d.code) + "</span>");
-  if (d.airDate) metaParts.push("<span>" + esc(d.airDate) + "</span>");
-  if (d.rating)  metaParts.push('<span class="rat">&#9733; ' + esc(d.rating) + "</span>");
-
-  var posterHtml = d.posterUrl
-    ? "<div id='poster'><img src='" + d.posterUrl + "' /></div>"
-    : "";
-
-  overlay.simpleMode();
-  overlay.setStyle(STYLE);
-  overlay.setContent(
-    "<div id='wrap'><div id='card'>" +
-      "<div id='text'>" +
-        "<div class='sn'>" + esc(d.showTitle)   + "</div>" +
-        "<div class='et'>" + esc(d.epTitle)      + "</div>" +
-        "<div class='mt'>" + metaParts.join("")   + "</div>" +
-        "<div class='ov'>" + esc(d.overview)      + "</div>" +
-      "</div>" +
-      posterHtml +
-    "</div></div>"
-  );
+  if (!overlayEnabled) return;
+  overlay.postMessage("showData", {
+    showTitle:  d.showTitle  || "",
+    epTitle:    d.epTitle    || "",
+    code:       d.code       || "",
+    airDate:    d.airDate    || "",
+    rating:     d.rating     || "",
+    overview:   d.overview   || "",
+    posterUrl:  d.posterUrl  || "",
+    bgOpacity:  overlayBgOpacity
+  });
   overlay.show();
-  log("✅ Showing: " + d.epTitle);
+  overlayVisible = true;
+  sidebar.postMessage("overlayShowing", { visible: true });
+  log("Showing: " + d.epTitle);
 }
 
 function hideOverlay() {
   if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null; }
   overlay.hide();
+  overlayVisible = false;
+  sidebar.postMessage("overlayShowing", { visible: false });
 }
 
+// ── Sidebar handlers ──────────────────────────────────────────
 function registerSidebarHandlers() {
+
   sidebar.onMessage("episodeSelected", function(info) {
     log("episodeSelected: " + (info ? info.epTitle : "null"));
     currentEpisode = info;
   });
+
   sidebar.onMessage("clearEpisode", function() {
     currentEpisode = null;
     hideOverlay();
+  });
+
+  sidebar.onMessage("overlayCloseRequest", function() {
+    hideOverlay();
+  });
+
+  // ON/OFF toggle from sidebar
+  sidebar.onMessage("setOverlayEnabled", function(d) {
+    overlayEnabled = !!d.enabled;
+    if (!overlayEnabled) hideOverlay();
+    log("Overlay " + (overlayEnabled ? "enabled" : "disabled"));
+  });
+
+  // Opacity slider
+  sidebar.onMessage("setOverlayOpacity", function(d) {
+    var v = parseFloat(d.value);
+    if (isNaN(v)) return;
+    overlayBgOpacity = Math.max(0, Math.min(1, v));
+    if (overlayVisible) overlay.postMessage("setBgOpacity", { value: overlayBgOpacity });
+  });
+
+  // ── Wyzie Subs ──────────────────────────────────────────────
+  sidebar.onMessage("searchWyzie", async function(d) {
+    try {
+      var params = {
+        id:       d.tmdbId,
+        language: d.lang || "en",
+        format:   "srt",
+        source:   "all",
+        key:      d.key
+      };
+      if (d.season)  params.season  = String(d.season);
+      if (d.episode) params.episode = String(d.episode);
+
+      var resp = await iina.http.get("https://sub.wyzie.ru/search", {
+        params:  params,
+        headers: { "Accept": "application/json" }
+      });
+      var body = resp.data || JSON.parse(resp.text || "[]");
+      if (resp.statusCode === 200) {
+        var results = Array.isArray(body) ? body : (body.results || []);
+        sidebar.postMessage("wyzieSearchResult", { results: results });
+      } else {
+        var errMsg = (!Array.isArray(body) && body && body.message) ? body.message : ("HTTP " + resp.statusCode);
+        sidebar.postMessage("wyzieSearchResult", { error: errMsg });
+      }
+    } catch(e) {
+      sidebar.postMessage("wyzieSearchResult", { error: String(e) });
+    }
+  });
+
+  sidebar.onMessage("loadWyzieSub", function(d) {
+    if (d && d.url) {
+      try {
+        iina.mpv.command("sub-add", [d.url, "select"]);
+        log("Subtitle loaded");
+        sidebar.postMessage("wyzieLoadResult", { success: true });
+      } catch(e) {
+        sidebar.postMessage("wyzieLoadResult", { success: false, error: String(e) });
+      }
+    }
+  });
+
+  // ── OpenSubtitles ───────────────────────────────────────────
+  sidebar.onMessage("osLogin", async function(d) {
+    try {
+      var resp = await iina.http.post("https://api.opensubtitles.com/api/v1/login", {
+        headers: { "Api-Key": d.key, "Content-Type": "application/json" },
+        data: { username: d.username, password: d.password }
+      });
+      var body = resp.data || JSON.parse(resp.text || "{}");
+      if (resp.statusCode === 200 && body.token) {
+        sidebar.postMessage("osLoginResult", { success: true, token: body.token, username: d.username, downloads: body.user ? body.user.allowed_downloads : null });
+      } else {
+        var msg = (body && typeof body.message === "string") ? body.message : ("HTTP " + resp.statusCode);
+        sidebar.postMessage("osLoginResult", { success: false, error: msg });
+      }
+    } catch(e) {
+      var errMsg = (e && e.data && e.data.message) ? e.data.message
+                 : (e && e.reason)                  ? e.reason
+                 : (e && e.message)                 ? e.message
+                 : (typeof e === "string")           ? e
+                 : JSON.stringify(e);
+      sidebar.postMessage("osLoginResult", { success: false, error: errMsg });
+    }
+  });
+
+  sidebar.onMessage("searchSubs", async function(d) {
+    try {
+      var params = { query: d.query, languages: d.lang || "en", type: d.isMovie ? "movie" : "episode" };
+      if (d.season)  params.season_number  = String(d.season);
+      if (d.episode) params.episode_number = String(d.episode);
+      var hdrs = { "Api-Key": d.key };
+      if (d.token) hdrs["Authorization"] = "Bearer " + d.token;
+      var resp = await iina.http.get("https://api.opensubtitles.com/api/v1/subtitles", { params: params, headers: hdrs });
+      var body = resp.data || JSON.parse(resp.text || "{}");
+      if (resp.statusCode === 200) {
+        sidebar.postMessage("subSearchResult", { results: body.data || [] });
+      } else {
+        sidebar.postMessage("subSearchResult", { error: (body && body.message) || ("HTTP " + resp.statusCode) });
+      }
+    } catch(e) { sidebar.postMessage("subSearchResult", { error: String(e) }); }
+  });
+
+  sidebar.onMessage("downloadSub", async function(d) {
+    try {
+      var hdrs = { "Api-Key": d.key, "Content-Type": "application/json" };
+      if (d.token) hdrs["Authorization"] = "Bearer " + d.token;
+      var resp = await iina.http.post("https://api.opensubtitles.com/api/v1/download", { headers: hdrs, data: { file_id: d.file_id } });
+      var body = resp.data || JSON.parse(resp.text || "{}");
+      if (resp.statusCode === 200 && body.link) {
+        iina.mpv.command("sub-add", [body.link, "select"]);
+        sidebar.postMessage("subDownloadResult", { success: true, remaining: typeof body.remaining === "number" ? body.remaining : null });
+      } else {
+        sidebar.postMessage("subDownloadResult", { success: false, error: (body && body.message) || ("HTTP " + resp.statusCode) });
+      }
+    } catch(e) { sidebar.postMessage("subDownloadResult", { success: false, error: String(e) }); }
+  });
+
+  sidebar.onMessage("clearSub", function() {
+    try { iina.mpv.set("sub", "no"); } catch(e) {}
   });
 }
 
@@ -123,7 +184,12 @@ function setupSidebar() {
   }
 }
 
-event.on("iina.window-loaded", function() { setupSidebar(); });
+// ── Events ────────────────────────────────────────────────────
+event.on("iina.window-loaded", function() {
+  overlay.loadFile("overlay.html");
+  overlay.onMessage("closeOverlay", function() { hideOverlay(); });
+  setupSidebar();
+});
 
 event.on("iina.file-loaded", function() {
   setupSidebar();
@@ -135,6 +201,8 @@ event.on("iina.file-loaded", function() {
 
 event.on("mpv.pause.changed", function() {
   if (core.status.paused) {
+    if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null; }
+    if (!overlayEnabled) return;
     if (currentEpisode) {
       pauseTimer = setTimeout(function() {
         pauseTimer = null;
