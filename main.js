@@ -172,7 +172,7 @@ function registerSidebarHandlers() {
   });
 
   sidebar.onMessage("clearSub", function() {
-    try { iina.mpv.set("sub", "no"); } catch(e) {}
+    try { iina.mpv.set("sid", "no"); } catch(e) {}
   });
 }
 
