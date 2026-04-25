@@ -21,6 +21,7 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* top default; JS overrides via showData / setVerticalPos (new in v1.2.0) */
   #wrap {
     position:fixed; top:50%; left:0; right:0;
     transform:translateY(-50%);
@@ -96,11 +97,35 @@ function esc(s) {
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+// ── Apply vertical position (new in v1.2.0) ───────────────────
+// 0 = top, 50 = center, 100 = bottom. Snaps to edges within 5%.
+function applyVerticalPos(v) {
+  var wrap = document.getElementById("wrap");
+  if (v <= 5) {
+    wrap.style.top = "0";
+    wrap.style.bottom = "auto";
+    wrap.style.transform = "none";
+  } else if (v >= 95) {
+    wrap.style.top = "auto";
+    wrap.style.bottom = "0";
+    wrap.style.transform = "none";
+  } else {
+    wrap.style.bottom = "auto";
+    wrap.style.top = v + "%";
+    wrap.style.transform = "translateY(-50%)";
+  }
+}
+
 // ── Receive episode data from main.js ─────────────────────────
 iina.onMessage("showData", function(d) {
   // Update background shade first
   if (typeof d.bgOpacity === "number") {
     document.documentElement.style.setProperty("--bg-opacity", d.bgOpacity);
+  }
+
+  // Apply vertical position (new in v1.2.0)
+  if (typeof d.verticalPos === "number") {
+    applyVerticalPos(d.verticalPos);
   }
 
   // Show title
@@ -135,6 +160,13 @@ iina.onMessage("showData", function(d) {
 iina.onMessage("setBgOpacity", function(d) {
   if (typeof d.value === "number") {
     document.documentElement.style.setProperty("--bg-opacity", d.value);
+  }
+});
+
+// ── Live vertical position update (new in v1.2.0) ────────────
+iina.onMessage("setVerticalPos", function(d) {
+  if (typeof d.value === "number") {
+    applyVerticalPos(d.value);
   }
 });
 </script>
