@@ -1,15 +1,19 @@
 // ============================================================
-// IINA Plugin: Episode Info  v1.1.0
+// IINA Plugin: Episode Info  v1.2.0
 // ============================================================
 
 const { core, event, overlay, sidebar } = iina;
 
-var sidebarLoaded    = false;
-var currentEpisode   = null;
-var pauseTimer       = null;
-var overlayVisible   = false;
-var overlayBgOpacity = 0.72;
-var overlayEnabled   = true;   // toggled from sidebar, persisted in sidebar's localStorage
+var sidebarLoaded      = false;
+var currentEpisode     = null;
+var pauseTimer         = null;
+var overlayVisible     = false;
+var overlayBgOpacity   = 0.72;
+var overlayEnabled     = true;   
+var overlayVerticalPos = 50;     
+var pauseDelay         = 3;      
+var currentVideoUrl    = "";     
+                                 
 
 function log(msg) {
   iina.console.log("[EpInfo] " + msg);
@@ -19,14 +23,15 @@ function log(msg) {
 function showOverlay(d) {
   if (!overlayEnabled) return;
   overlay.postMessage("showData", {
-    showTitle:  d.showTitle  || "",
-    epTitle:    d.epTitle    || "",
-    code:       d.code       || "",
-    airDate:    d.airDate    || "",
-    rating:     d.rating     || "",
-    overview:   d.overview   || "",
-    posterUrl:  d.posterUrl  || "",
-    bgOpacity:  overlayBgOpacity
+    showTitle:   d.showTitle  || "",
+    epTitle:     d.epTitle    || "",
+    code:        d.code       || "",
+    airDate:     d.airDate    || "",
+    rating:      d.rating     || "",
+    overview:    d.overview   || "",
+    posterUrl:   d.posterUrl  || "",
+    bgOpacity:   overlayBgOpacity,
+    verticalPos: overlayVerticalPos
   });
   overlay.show();
   overlayVisible = true;
@@ -71,6 +76,27 @@ function registerSidebarHandlers() {
     if (isNaN(v)) return;
     overlayBgOpacity = Math.max(0, Math.min(1, v));
     if (overlayVisible) overlay.postMessage("setBgOpacity", { value: overlayBgOpacity });
+  });
+
+  // Vertical position slider (new in v1.2.0)
+  sidebar.onMessage("setOverlayVerticalPos", function(d) {
+    var v = parseFloat(d.value);
+    if (!isNaN(v)) {
+      overlayVerticalPos = Math.max(0, Math.min(100, v));
+      if (overlayVisible) overlay.postMessage("setVerticalPos", { value: overlayVerticalPos });
+    }
+  });
+
+  // Configurable pause delay (new in v1.2.0)
+  sidebar.onMessage("setPauseDelay", function(d) {
+    var v = parseFloat(d.value);
+    if (!isNaN(v) && v >= 0.5) pauseDelay = v;
+  });
+  
+  sidebar.onMessage("sidebarReady", function() {
+    if (currentVideoUrl) {
+      sidebar.postMessage("fileChanged", { url: currentVideoUrl });
+    }
   });
 
   // ── Wyzie Subs ──────────────────────────────────────────────
@@ -195,7 +221,9 @@ event.on("iina.file-loaded", function() {
   setupSidebar();
   currentEpisode = null;
   hideOverlay();
-  sidebar.postMessage("fileChanged", {});
+  // Capture URL so sidebar can look it up in its URL→episode map (new in v1.2.0)
+  try { currentVideoUrl = core.status.url || ""; } catch(e) { currentVideoUrl = ""; }
+  sidebar.postMessage("fileChanged", { url: currentVideoUrl });
   sidebar.postMessage("overlayStatus", { text: "Select an episode, then pause" });
 });
 
@@ -207,7 +235,7 @@ event.on("mpv.pause.changed", function() {
       pauseTimer = setTimeout(function() {
         pauseTimer = null;
         if (core.status.paused && currentEpisode) showOverlay(currentEpisode);
-      }, 3000);
+      }, pauseDelay * 1000);
     } else {
       log("Paused — no episode selected");
     }
