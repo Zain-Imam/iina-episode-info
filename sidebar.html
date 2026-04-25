@@ -109,12 +109,12 @@
   @keyframes sp { to { transform: rotate(360deg); } }
   hr.div { border: none; border-top: 1px solid rgba(255,255,255,.09); margin: 14px 0; }
 
-  /* Opacity slider */
+  /* Opacity slider (also used by Overlay Position slider, new in v1.2.0) */
   .op-wrap { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 9px 12px; margin-bottom: 12px; }
   .op-row  { display: flex; align-items: center; gap: 8px; }
-  #opacity-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; }
-  #opacity-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #e50914; cursor: pointer; }
-  #opacity-val { font-size: 11px; color: rgba(255,255,255,.45); min-width: 34px; text-align: right; }
+  #opacity-slider, #vpos-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; }
+  #opacity-slider::-webkit-slider-thumb, #vpos-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #e50914; cursor: pointer; }
+  #opacity-val, #vpos-val { font-size: 11px; color: rgba(255,255,255,.45); min-width: 50px; text-align: right; }
 
   /* Dismiss button */
   #ov-dismiss { display: none; margin-bottom: 10px; }
@@ -178,6 +178,30 @@
     <span id="opacity-val">72%</span>
   </div>
   <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">0% = transparent · 100% = solid black</div>
+</div>
+
+<!-- Overlay vertical position slider (new in v1.2.0) -->
+<div class="op-wrap">
+  <div class="op-row">
+    <div class="sl" style="margin:0">Overlay Position</div>
+    <input type="range" id="vpos-slider" min="0" max="100" value="50" oninput="doSetVPos(this.value)" />
+    <span id="vpos-val">Center</span>
+  </div>
+  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">Top &nbsp;·&nbsp; Center &nbsp;·&nbsp; Bottom</div>
+</div>
+
+<!-- Pause delay (new in v1.2.0) -->
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
+  <div>
+    <div style="font-size:13px;font-weight:600;color:#fff">Pause Delay</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Seconds to wait after pausing before the overlay appears</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px">
+    <input type="number" id="pause-delay-input" min="0.5" max="30" step="0.5" value="3"
+      onchange="doSetPauseDelay(this.value)"
+      style="width:54px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:5px 8px;color:#fff;font-size:13px;font-family:inherit;outline:none;text-align:center" />
+    <span style="font-size:11px;color:rgba(255,255,255,.45)">sec</span>
+  </div>
 </div>
 
 <!-- Saved card with full details -->
@@ -310,6 +334,33 @@ var descExpanded = false;
 var episodeCache = [];
 var seasonPosterUrl = "";
 
+// ── URL → episode map (new in v1.2.0) ─────────────────────────
+// Each video URL gets its own remembered TMDB identification so the
+// user doesn't have to re-search when re-playing the same file/stream.
+// `currentVideoUrl` is set by the fileChanged handler.
+var currentVideoUrl = "";
+function loadUrlMap() {
+  try { return JSON.parse(localStorage.getItem("epinfo_url_map") || "{}"); }
+  catch(e) { return {}; }
+}
+function saveUrlMap(m) {
+  try { localStorage.setItem("epinfo_url_map", JSON.stringify(m)); } catch(e) {}
+}
+function saveCurrentUrlInfo(info) {
+  if (!currentVideoUrl) return;
+  var m = loadUrlMap();
+  m[currentVideoUrl] = info;
+  saveUrlMap(m);
+}
+function clearCurrentUrlFromMap() {
+  if (!currentVideoUrl) return;
+  var m = loadUrlMap();
+  if (m[currentVideoUrl]) {
+    delete m[currentVideoUrl];
+    saveUrlMap(m);
+  }
+}
+
 // ── File changed ──────────────────────────────────────────────
 // fileChanged handled below
 
@@ -362,6 +413,9 @@ function toggleDesc() {
 }
 
 function doClear() {
+  // user explicitly cleared — also forget this URL's saved identification
+  // so re-playing it later doesn't auto-restore the old pick (new in v1.2.0)
+  clearCurrentUrlFromMap();
   try{localStorage.removeItem("epinfo_ep");}catch(e){}
   document.getElementById("saved").classList.remove("on");
   selShow      = null;
@@ -547,6 +601,7 @@ function pickEp(idx) {
 
 function saveSelection(info) {
   try{localStorage.setItem("epinfo_ep", JSON.stringify(info));}catch(e){}
+  saveCurrentUrlInfo(info); // remember per-URL (new in v1.2.0)
   showSaved(info);
   iina.postMessage("episodeSelected", info);
   document.getElementById("panel").innerHTML =
@@ -590,11 +645,37 @@ iina.onMessage("overlayStatus", function(d){
   var el=document.getElementById("ov-st");
   if(el) el.textContent = d.text||"";
 });
-iina.onMessage("fileChanged", function(){
-  try{localStorage.removeItem("epinfo_ep");}catch(e){}
-  doClear();
-  document.getElementById("q").value="";
-  selShow=null; selSeason=null; episodeCache=[]; resetPanel();
+// ── File changed ──────────────────────────────────────────────
+// Now URL-aware (new in v1.2.0). If main.js sends a URL we've already
+// identified before, silently restore that pick instead of clearing.
+iina.onMessage("fileChanged", function(d){
+  currentVideoUrl = (d && d.url) || "";
+
+  // Reset search panel state regardless
+  document.getElementById("q").value = "";
+  selShow = null; selSeason = null; episodeCache = []; resetPanel();
+
+  var map   = loadUrlMap();
+  var saved = currentVideoUrl ? map[currentVideoUrl] : null;
+
+  if (saved) {
+    // URL is already identified — restore silently
+    try { localStorage.setItem("epinfo_ep", JSON.stringify(saved)); } catch(e) {}
+    showSaved(saved);
+    if (WZK) document.getElementById("wz-search-btn").disabled = false;
+    var osBtn = document.getElementById("os-search-btn");
+    if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
+    iina.postMessage("episodeSelected", saved);
+  } else {
+    // Unknown URL — clear (matches v1.1.0 behavior). Note: doClear() is
+    // NOT used here because that would also drop the URL from the map,
+    // which we only want when the user explicitly clicks "Clear".
+    try { localStorage.removeItem("epinfo_ep"); } catch(e) {}
+    document.getElementById("saved").classList.remove("on");
+    iina.postMessage("clearEpisode", {});
+    if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
+    if (typeof resetOs === "function") { resetOs(); var osBtn2 = document.getElementById("os-search-btn"); if (osBtn2) osBtn2.disabled = true; }
+  }
 });
 
 // ── API Key ───────────────────────────────────────────────────
@@ -664,6 +745,12 @@ function doChangeKey() {
     document.getElementById("opacity-slider").value = p;
     document.getElementById("opacity-val").textContent = p + "%";
   }
+  // v1.2.0 fix: push the saved value to main.js once handlers are ready.
+  // Without this, opacity always reset to default on IINA restart.
+  setTimeout(function() {
+    var v = localStorage.getItem("epinfo_overlay_opacity");
+    if (v !== null) iina.postMessage("setOverlayOpacity", { value: parseFloat(v) });
+  }, 800);
 })();
 function doSetOpacity(val) {
   var p = parseInt(val, 10);
@@ -671,6 +758,59 @@ function doSetOpacity(val) {
   var n = p / 100;
   try { localStorage.setItem("epinfo_overlay_opacity", n); } catch(e) {}
   iina.postMessage("setOverlayOpacity", { value: n });
+}
+
+// ── Overlay vertical position slider (new in v1.2.0) ──────────
+function vposLabel(v) {
+  if (v <= 5)  return "Top";
+  if (v >= 95) return "Bottom";
+  if (v >= 48 && v <= 52) return "Center";
+  return v + "%";
+}
+(function(){
+  var s = localStorage.getItem("epinfo_overlay_vpos");
+  if (s !== null) {
+    var v = parseFloat(s);
+    document.getElementById("vpos-slider").value = v;
+    document.getElementById("vpos-val").textContent = vposLabel(v);
+  }
+  setTimeout(function() {
+    var v = localStorage.getItem("epinfo_overlay_vpos");
+    if (v !== null) iina.postMessage("setOverlayVerticalPos", { value: parseFloat(v) });
+  }, 800);
+})();
+function doSetVPos(val) {
+  var v = parseInt(val, 10);
+  document.getElementById("vpos-val").textContent = vposLabel(v);
+  try { localStorage.setItem("epinfo_overlay_vpos", v); } catch(e) {}
+  iina.postMessage("setOverlayVerticalPos", { value: v });
+}
+
+// ── Pause delay (new in v1.2.0) ───────────────────────────────
+(function(){
+  var s = localStorage.getItem("epinfo_pause_delay");
+  if (s !== null) {
+    document.getElementById("pause-delay-input").value = parseFloat(s);
+  }
+  setTimeout(function() {
+    var v = localStorage.getItem("epinfo_pause_delay");
+    var n = v !== null ? parseFloat(v) : 3;
+    if (!isNaN(n)) iina.postMessage("setPauseDelay", { value: n });
+
+    // All settings have been pushed — tell main.js it's safe to re-emit
+    // fileChanged so we can do the per-URL TMDB restore (new in v1.2.0).
+    // The original fileChanged from iina.file-loaded may have arrived
+    // before our handlers were registered.
+    iina.postMessage("sidebarReady", {});
+  }, 800);
+})();
+function doSetPauseDelay(val) {
+  var n = parseFloat(val);
+  if (isNaN(n) || n < 0.5) n = 0.5;
+  if (n > 30) n = 30;
+  document.getElementById("pause-delay-input").value = n;
+  try { localStorage.setItem("epinfo_pause_delay", n); } catch(e) {}
+  iina.postMessage("setPauseDelay", { value: n });
 }
 
 // ── NEW: Overlay dismiss/showing ──────────────────────────────
