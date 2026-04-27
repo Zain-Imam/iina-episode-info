@@ -4,7 +4,7 @@ Search for episode or movie info from TMDB and display it as an overlay when you
 
 ## Preview
 
-![Episode Info demo](<img width="800" height="493" alt="Image" src="https://github.com/user-attachments/assets/976d7766-aa42-44e4-a451-21c6657c5f79" />)
+<img width="800" height="493" alt="Episode Info demo" src="https://github.com/user-attachments/assets/976d7766-aa42-44e4-a451-21c6657c5f79" />
 
 ## Features
 
