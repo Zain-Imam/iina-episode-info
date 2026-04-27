@@ -151,59 +151,6 @@
 <body>
 <div id="ov-status-box" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:8px 12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px">Overlay Status</div><div id="ov-st" style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.4">Waiting...</div></div>
 
-<!-- Overlay ON/OFF toggle -->
-<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
-  <div>
-    <div style="font-size:13px;font-weight:600;color:#fff">Show Overlay on Pause</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Displays episode info 3s after pausing</div>
-  </div>
-  <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:12px;cursor:pointer">
-    <input type="checkbox" id="overlay-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleOverlay(this.checked)" />
-    <span id="toggle-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
-      <span id="toggle-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
-    </span>
-  </label>
-</div>
-
-<!-- Dismiss overlay (visible only when overlay is showing) -->
-<div id="ov-dismiss">
-  <button onclick="iina.postMessage('overlayCloseRequest',{})">✕  Dismiss overlay</button>
-</div>
-
-<!-- Overlay shade slider -->
-<div class="op-wrap">
-  <div class="op-row">
-    <div class="sl" style="margin:0">Overlay Shade</div>
-    <input type="range" id="opacity-slider" min="0" max="100" value="72" oninput="doSetOpacity(this.value)" />
-    <span id="opacity-val">72%</span>
-  </div>
-  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">0% = transparent · 100% = solid black</div>
-</div>
-
-<!-- Overlay vertical position slider (new in v1.2.0) -->
-<div class="op-wrap">
-  <div class="op-row">
-    <div class="sl" style="margin:0">Overlay Position</div>
-    <input type="range" id="vpos-slider" min="0" max="100" value="50" oninput="doSetVPos(this.value)" />
-    <span id="vpos-val">Center</span>
-  </div>
-  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">Top &nbsp;·&nbsp; Center &nbsp;·&nbsp; Bottom</div>
-</div>
-
-<!-- Pause delay (new in v1.2.0) -->
-<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
-  <div>
-    <div style="font-size:13px;font-weight:600;color:#fff">Pause Delay</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Seconds to wait after pausing before the overlay appears</div>
-  </div>
-  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px">
-    <input type="number" id="pause-delay-input" min="0.5" max="30" step="0.5" value="3"
-      onchange="doSetPauseDelay(this.value)"
-      style="width:54px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:5px 8px;color:#fff;font-size:13px;font-family:inherit;outline:none;text-align:center" />
-    <span style="font-size:11px;color:rgba(255,255,255,.45)">sec</span>
-  </div>
-</div>
-
 <!-- Saved card with full details -->
 <div id="saved">
   <div id="s-show"></div>
@@ -284,14 +231,81 @@
     <input id="os-lang" type="text" value="en" placeholder="en, fr…" class="lang-inp" />
   </div>
   <button id="os-search-btn" class="sub-btn2" onclick="doOsSearch()" disabled>Search OpenSubtitles</button>
+
+  <!-- Always-usable manual search (v1.2.1) — independent of auto-search state -->
+  <div id="os-manual-row" style="margin-top:7px">
+    <div style="font-size:10px;color:rgba(255,255,255,.32);margin-bottom:4px">Or search by custom title (e.g. "The Boys S05E02"):</div>
+    <div style="display:flex;gap:6px">
+      <input id="os-manual-q" type="text" placeholder="Custom search…"
+             onkeydown="if(event.key==='Enter')doOsSearch(this.value)"
+             style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 9px;color:#fff;font-size:11px;font-family:inherit;outline:none" />
+      <button id="os-manual-btn" onclick="doOsSearch(document.getElementById('os-manual-q').value)"
+              style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:11px;padding:6px 12px;border-radius:6px;cursor:pointer;flex-shrink:0">Search</button>
+    </div>
+  </div>
+
   <div id="os-results"><div class="msg" style="padding:6px 0">Set API Key above first.</div></div>
+
+  <!-- Always-visible opensubtitles.org website link (v1.2.1) — only shown
+       once we have an IMDB id resolved. Direct manual escape hatch.
+       Uses a button + postMessage because IINA's WebView <a target=_blank>
+       does nothing — links must be opened via iina.utils.openURL in main.js. -->
+  <div id="os-dotorg-row" style="display:none;margin-top:8px">
+    <button id="os-dotorg-link" onclick="openOsDotOrg()"
+       style="display:block;width:100%;text-align:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.75);padding:7px;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit">
+      View on opensubtitles.org →
+    </button>
+    <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:3px;text-align:center">
+      Legacy site — often has uploads not yet on .com
+    </div>
+  </div>
+
+  <hr class="div" />
+
+  <!-- SubDL (v1.2.1) -->
+  <div class="sub-hd">Subtitles — SubDL</div>
+  <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
+    Independent subtitle source &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">subdl.com/panel/api</strong>
+  </div>
+  <div id="sd-key-box" class="key-box">
+    <div class="key-title">⚠ SubDL API Key (free, no payment)</div>
+    <div class="key-desc">Sign up at subdl.com → Profile → API → copy key → paste below</div>
+    <div class="key-row">
+      <input type="password" id="sd-key-input" placeholder="Paste SubDL key…" onkeydown="if(event.key==='Enter')doSaveSdKey()" />
+      <button onclick="doSaveSdKey()" style="background:#c0392b;border:none;color:#fff;font-size:11px;font-weight:600;padding:6px 13px;border-radius:6px;cursor:pointer">Save</button>
+    </div>
+    <div id="sd-key-msg" class="key-msg"></div>
+  </div>
+  <div id="sd-key-ok" class="key-ok">
+    <span style="color:rgba(48,209,88,.9)">✓ SubDL key active</span>
+    <button onclick="doChangeSdKey()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;padding:0">Change</button>
+  </div>
+  <div class="lang-row">
+    <span class="lang-lbl">Language</span>
+    <input id="sd-lang" type="text" value="EN" placeholder="EN, FR…" class="lang-inp" />
+  </div>
+  <button id="sd-search-btn" class="sub-btn2" onclick="doSdSearch()" disabled>Search SubDL</button>
+
+  <!-- Always-usable manual search -->
+  <div id="sd-manual-row" style="margin-top:7px">
+    <div style="font-size:10px;color:rgba(255,255,255,.32);margin-bottom:4px">Or search by custom title:</div>
+    <div style="display:flex;gap:6px">
+      <input id="sd-manual-q" type="text" placeholder="Custom search…"
+             onkeydown="if(event.key==='Enter')doSdSearch(this.value)"
+             style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 9px;color:#fff;font-size:11px;font-family:inherit;outline:none" />
+      <button id="sd-manual-btn" onclick="doSdSearch(document.getElementById('sd-manual-q').value)"
+              style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:11px;padding:6px 12px;border-radius:6px;cursor:pointer;flex-shrink:0">Search</button>
+    </div>
+  </div>
+
+  <div id="sd-results"><div class="msg" style="padding:6px 0">Set API Key above first.</div></div>
 
   <hr class="div" />
 
   <!-- Wyzie Subs -->
   <div class="sub-hd">Subtitles — Wyzie Subs</div>
   <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
-    OpenSubtitles · SubDL · Podnapisi + more &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">sub.wyzie.io/redeem</strong>
+    OpenSubtitles · Podnapisi + more &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">sub.wyzie.io/redeem</strong>
   </div>
   <div id="wz-key-box" class="key-box">
     <div class="key-title">⚠ Wyzie API Key (free, instant)</div>
@@ -311,9 +325,75 @@
     <input id="wz-lang" type="text" value="en" placeholder="en, fr…" class="lang-inp" />
   </div>
   <button id="wz-search-btn" class="sub-btn2" onclick="doWzSearch()" disabled>Search Wyzie Subs</button>
+
+  <!-- Always-visible "whole show" button (v1.2.1) — Wyzie API doesn't accept text queries,
+       so the only useful manual override is to drop the season/episode filter. Hidden for movies
+       since there's nothing to broaden. -->
+  <div id="wz-broad-row" style="margin-top:6px;display:none">
+    <button id="wz-broad-btn" onclick="doWzSearch(true)"
+            style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.6);font-size:11px;padding:6px;border-radius:6px;cursor:pointer">Search whole show (no episode filter)</button>
+  </div>
+
   <div id="wz-results"><div class="msg" style="padding:6px 0">Enter Wyzie key above, then select an episode.</div></div>
   <div id="wz-clear-row" style="display:none;margin-top:6px">
     <button style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);font-size:11px;padding:5px;border-radius:5px;cursor:pointer" onclick="doClearSub()">Disable loaded subtitle</button>
+  </div>
+</div>
+
+<hr class="div" />
+
+<!-- ── Overlay settings (moved to bottom in v1.2.1) ─────────── -->
+
+<!-- Overlay ON/OFF toggle -->
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
+  <div>
+    <div style="font-size:13px;font-weight:600;color:#fff">Show Overlay on Pause</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Displays episode info after pausing</div>
+  </div>
+  <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:12px;cursor:pointer">
+    <input type="checkbox" id="overlay-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleOverlay(this.checked)" />
+    <span id="toggle-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
+      <span id="toggle-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
+    </span>
+  </label>
+</div>
+
+<!-- Dismiss overlay (visible only when overlay is showing) -->
+<div id="ov-dismiss">
+  <button onclick="iina.postMessage('overlayCloseRequest',{})">✕  Dismiss overlay</button>
+</div>
+
+<!-- Overlay shade slider -->
+<div class="op-wrap">
+  <div class="op-row">
+    <div class="sl" style="margin:0">Overlay Shade</div>
+    <input type="range" id="opacity-slider" min="0" max="100" value="72" oninput="doSetOpacity(this.value)" />
+    <span id="opacity-val">72%</span>
+  </div>
+  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">0% = transparent · 100% = solid black</div>
+</div>
+
+<!-- Overlay vertical position slider -->
+<div class="op-wrap">
+  <div class="op-row">
+    <div class="sl" style="margin:0">Overlay Position</div>
+    <input type="range" id="vpos-slider" min="0" max="100" value="50" oninput="doSetVPos(this.value)" />
+    <span id="vpos-val">Center</span>
+  </div>
+  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">Top &nbsp;·&nbsp; Center &nbsp;·&nbsp; Bottom</div>
+</div>
+
+<!-- Pause delay -->
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
+  <div>
+    <div style="font-size:13px;font-weight:600;color:#fff">Pause Delay</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Seconds to wait after pausing before the overlay appears</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px">
+    <input type="number" id="pause-delay-input" min="0.5" max="30" step="0.5" value="3"
+      onchange="doSetPauseDelay(this.value)"
+      style="width:54px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:5px 8px;color:#fff;font-size:13px;font-family:inherit;outline:none;text-align:center" />
+    <span style="font-size:11px;color:rgba(255,255,255,.45)">sec</span>
   </div>
 </div>
 
@@ -361,6 +441,38 @@ function clearCurrentUrlFromMap() {
   }
 }
 
+// IMDB IDs are resolved in main.js on demand at subtitle-search time
+// (v1.2.1). The sidebar caches the result back into the saved episode
+// when it comes back from a successful search — see
+// onMessage("subSearchResult"), onMessage("wyzieSearchResult"), etc.
+function cacheResolvedImdbIds(resolved) {
+  if (!resolved || (!resolved.imdb && !resolved.parentImdb)) return;
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  if (!saved) return;
+  var changed = false;
+  if (resolved.imdb && !saved.imdbId) {
+    saved.imdbId = resolved.imdb;
+    changed = true;
+  }
+  if (resolved.parentImdb && !saved.parentImdbId) {
+    saved.parentImdbId = resolved.parentImdb;
+    changed = true;
+  }
+  if (changed) {
+    try { localStorage.setItem("epinfo_ep", JSON.stringify(saved)); } catch(e) {}
+    saveCurrentUrlInfo(saved);
+    if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
+  }
+}
+
+// Eager IMDB resolution result (v1.2.1) — main.js sends this after a
+// resolveImdbOnly request. We just cache and update the .org link.
+iina.onMessage("imdbResolved", function(d) {
+  if (!d) return;
+  cacheResolvedImdbIds({ imdb: d.imdb, parentImdb: d.parentImdb });
+});
+
 // ── File changed ──────────────────────────────────────────────
 // fileChanged handled below
 
@@ -397,6 +509,22 @@ function showSaved(info) {
   }, 50);
 
   document.getElementById("saved").classList.add("on");
+
+  // Pre-fill the always-visible OS manual search input with a sensible default (v1.2.1).
+  // The input itself stays usable regardless of state — the user can fire it any time.
+  var defOsQ = info.isMovie
+    ? (info.epTitle || info.showTitle || "")
+    : ((info.showTitle || "") + (info.code ? " " + info.code : ""));
+  var mq = document.getElementById("os-manual-q");
+  if (mq) mq.value = defOsQ;
+
+  // Wyzie broad-show button visible only for TV shows (no broadening on movies).
+  // Always clickable — doWzSearch will show a clear error if Wyzie key missing.
+  var wzBroad = document.getElementById("wz-broad-row");
+  if (wzBroad) wzBroad.style.display = info.isMovie ? "none" : "block";
+
+  // Update opensubtitles.org website link (v1.2.1)
+  if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
 }
 
 function toggleDesc() {
@@ -426,6 +554,10 @@ function doClear() {
   resetPanel();
   if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
   if (typeof resetOs === "function") { resetOs(); var osBtn = document.getElementById("os-search-btn"); if (osBtn) osBtn.disabled = true; }
+  if (typeof resetSd === "function") { resetSd(); var sdBtn = document.getElementById("sd-search-btn"); if (sdBtn) sdBtn.disabled = true; }
+  // Hide opensubtitles.org website link (v1.2.1)
+  var orgRow = document.getElementById("os-dotorg-row");
+  if (orgRow) orgRow.style.display = "none";
 }
 
 // ── Search ────────────────────────────────────────────────────
@@ -615,6 +747,22 @@ function saveSelection(info) {
   var osBtn = document.getElementById("os-search-btn");
   if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
   if (typeof resetOs === "function") resetOs();
+  // enable SubDL search button if key is set (v1.2.1)
+  var sdBtn = document.getElementById("sd-search-btn");
+  if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
+  if (typeof resetSd === "function") resetSd();
+
+  // Eagerly resolve IMDB IDs (v1.2.1) so the opensubtitles.org website link
+  // populates without waiting for a subtitle search. Skip if already cached.
+  if (TK && info.tmdbId && !info.imdbId && !info.parentImdbId) {
+    iina.postMessage("resolveImdbOnly", {
+      tmdbKey: TK,
+      tmdbId:  info.tmdbId,
+      isMovie: !!info.isMovie,
+      season:  info.season  || null,
+      episode: info.episode || null
+    });
+  }
 }
 
 // ── Overlay ON/OFF toggle ─────────────────────────────────────
@@ -665,7 +813,22 @@ iina.onMessage("fileChanged", function(d){
     if (WZK) document.getElementById("wz-search-btn").disabled = false;
     var osBtn = document.getElementById("os-search-btn");
     if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
+    var sdBtn = document.getElementById("sd-search-btn");  // v1.2.1
+    if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
     iina.postMessage("episodeSelected", saved);
+    // IMDB IDs are resolved on demand in main.js (v1.2.1)
+    // Update opensubtitles.org website link if we already have IDs cached
+    if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
+    // Eagerly resolve IMDB IDs to populate the .org link (v1.2.1)
+    if (TK && saved.tmdbId && !saved.imdbId && !saved.parentImdbId) {
+      iina.postMessage("resolveImdbOnly", {
+        tmdbKey: TK,
+        tmdbId:  saved.tmdbId,
+        isMovie: !!saved.isMovie,
+        season:  saved.season  || null,
+        episode: saved.episode || null
+      });
+    }
   } else {
     // Unknown URL — clear (matches v1.1.0 behavior). Note: doClear() is
     // NOT used here because that would also drop the URL from the map,
@@ -675,6 +838,9 @@ iina.onMessage("fileChanged", function(d){
     iina.postMessage("clearEpisode", {});
     if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
     if (typeof resetOs === "function") { resetOs(); var osBtn2 = document.getElementById("os-search-btn"); if (osBtn2) osBtn2.disabled = true; }
+    if (typeof resetSd === "function") { resetSd(); var sdBtn2 = document.getElementById("sd-search-btn"); if (sdBtn2) sdBtn2.disabled = true; }
+    var orgRow = document.getElementById("os-dotorg-row");
+    if (orgRow) orgRow.style.display = "none";
   }
 });
 
@@ -802,6 +968,9 @@ function doSetVPos(val) {
     // The original fileChanged from iina.file-loaded may have arrived
     // before our handlers were registered.
     iina.postMessage("sidebarReady", {});
+    // IMDB IDs are resolved at search time by main.js (v1.2.1)
+    // Initialize opensubtitles.org website link visibility
+    if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
   }, 800);
 })();
 function doSetPauseDelay(val) {
@@ -824,6 +993,13 @@ var wzCache = [], wzLoadedIdx = null, wzPendingIdx = null;
 
 (function() {
   if (WZK) { document.getElementById("wz-key-box").style.display = "none"; document.getElementById("wz-key-ok").style.display = "flex"; }
+
+  // Broad-show row visible for any TV show (v1.2.1) — always clickable;
+  // doWzSearch checks for Wyzie key and shows an error if missing.
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  var bbRow = document.getElementById("wz-broad-row");
+  if (bbRow && saved && !saved.isMovie) bbRow.style.display = "block";
 })();
 
 function doSaveWzKey() {
@@ -835,9 +1011,14 @@ function doSaveWzKey() {
   setTimeout(function() {
     document.getElementById("wz-key-box").style.display = "none";
     document.getElementById("wz-key-ok").style.display = "flex";
-    if (document.getElementById("wz-search-btn") && localStorage.getItem("epinfo_ep")) {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+    if (document.getElementById("wz-search-btn") && saved) {
       document.getElementById("wz-search-btn").disabled = false;
     }
+    // Show broad-row for TV shows (v1.2.1) — always clickable
+    var bbRow = document.getElementById("wz-broad-row");
+    if (bbRow && saved && !saved.isMovie) bbRow.style.display = "block";
   }, 700);
 }
 function doChangeWzKey() {
@@ -849,31 +1030,99 @@ function doChangeWzKey() {
   document.getElementById("wz-search-btn").disabled = true;
 }
 function resetWz() {
+  wzCancelTimer();
   wzCache = []; wzLoadedIdx = null; wzPendingIdx = null;
   document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">Select an episode, then search.</div>';
   document.getElementById("wz-clear-row").style.display = "none";
+  // v1.2.1: broad-btn always usable, no disable here
 }
-function doWzSearch() {
+// ── Wyzie search with sidebar-side timeout (v1.2.1) ──────────
+var wzTimerId = null;
+var WZ_TIMEOUT_MS = 30000;
+
+function wzCancelTimer() {
+  if (wzTimerId !== null) { clearTimeout(wzTimerId); wzTimerId = null; }
+}
+function wzEnableInputs() {
+  document.getElementById("wz-search-btn").disabled = false;
+  var bb = document.getElementById("wz-broad-btn");
+  if (bb) bb.disabled = false;
+}
+function wzDisableInputs() {
+  document.getElementById("wz-search-btn").disabled = true;
+  var bb = document.getElementById("wz-broad-btn");
+  if (bb) bb.disabled = true;
+}
+
+function doWzSearch(broadShow) {
+  wzCancelTimer();
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
   if (!saved) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">No episode selected.</div>'; return; }
-  if (!WZK) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">Enter your Wyzie key first.</div>'; return; }
+  if (!WZK)   { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">Enter your Wyzie key first.</div>'; return; }
   if (!saved.tmdbId) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">No TMDB ID — re-select episode.</div>'; return; }
-  document.getElementById("wz-search-btn").disabled = true;
-  document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>Searching 10+ sources…</div>';
+
+  wzDisableInputs();
+  document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>'
+    + '<span id="wz-prog">' + (broadShow ? "Searching whole show…" : "Searching 10+ sources…") + '</span>'
+    + ' <button onclick="wzCancel()" style="margin-left:8px;background:none;border:none;color:rgba(255,150,150,.8);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Cancel</button></div>';
+
   iina.postMessage("searchWyzie", {
-    tmdbId:  saved.tmdbId,
-    season:  saved.season  || null,
-    episode: saved.episode || null,
-    lang:    (document.getElementById("wz-lang").value || "en").trim() || "en",
-    key:     WZK
+    tmdbKey:       TK,                              // v1.2.1: for lazy IMDB resolve
+    tmdbId:        saved.tmdbId,
+    imdbId:        saved.imdbId || null,
+    parentImdbId:  saved.parentImdbId || null,
+    season:        saved.season  || null,
+    episode:       saved.episode || null,
+    isMovie:       !!saved.isMovie,
+    broadShow:     !!broadShow,
+    lang:          (document.getElementById("wz-lang").value || "en").trim() || "en",
+    key:           WZK
   });
+
+  wzTimerId = setTimeout(function() {
+    wzTimerId = null;
+    wzEnableInputs();
+    document.getElementById("wz-results").innerHTML =
+      '<div class="msg" style="padding:6px 0;color:rgba(255,150,150,.85)">Request timed out after '
+      + Math.round(WZ_TIMEOUT_MS/1000) + 's. Wyzie may be slow or down.</div>'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try OpenSubtitles above (it supports custom search), or retry.</div>';
+  }, WZ_TIMEOUT_MS);
 }
+
+function wzCancel() {
+  wzCancelTimer();
+  wzEnableInputs();
+  document.getElementById("wz-results").innerHTML =
+    '<div class="msg" style="padding:6px 0;color:rgba(255,255,255,.5)">Search cancelled.</div>';
+}
+
+iina.onMessage("wyzieSearchProgress", function(d) {
+  var el = document.getElementById("wz-prog");
+  if (el && d && d.text) el.textContent = d.text;
+});
 iina.onMessage("wyzieSearchResult", function(d) {
-  document.getElementById("wz-search-btn").disabled = false;
-  if (d.error) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: ' + htmlEsc(d.error) + '</div>'; return; }
+  wzCancelTimer();
+  wzEnableInputs();
+  // Cache resolved IMDB IDs from main.js (v1.2.1)
+  cacheResolvedImdbIds({ imdb: d.resolvedImdb, parentImdb: d.resolvedParentImdb });
+  var triedSuffix = (d.triedSteps && d.triedSteps.length)
+    ? '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:4px">Tried: ' + htmlEsc(d.triedSteps.join(" → ")) + '</div>'
+    : '';
+  if (d.error) {
+    document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: '
+      + htmlEsc(String(d.error)) + '</div>'
+      + triedSuffix
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Wyzie can fail for very new or rare episodes. Try the whole-show button above, or use OpenSubtitles for custom text search.</div>';
+    return;
+  }
   wzCache = d.results || [];
-  if (!wzCache.length) { document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">No results. Try a different language.</div>'; return; }
+  if (!wzCache.length) {
+    document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">No results.</div>'
+      + triedSuffix
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the whole-show button above, a different language, or use OpenSubtitles.</div>';
+    return;
+  }
   renderWz();
 });
 function renderWz() {
@@ -907,6 +1156,237 @@ iina.onMessage("wyzieLoadResult", function(d) {
 function doWzNone() { wzLoadedIdx = -1; wzPendingIdx = null; iina.postMessage("clearSub", {}); renderWz(); document.getElementById("wz-clear-row").style.display = "none"; }
 function doClearSub() { wzLoadedIdx = null; wzPendingIdx = null; iina.postMessage("clearSub", {}); document.getElementById("wz-clear-row").style.display = "none"; renderWz(); }
 
+// ── SubDL (v1.2.1) ────────────────────────────────────────────
+// Third subtitle source — independent database from OpenSubtitles, free
+// API key from subdl.com/panel/api. Returns ZIP files; main.js handles
+// download + extraction via macOS's built-in unzip.
+var SDK = localStorage.getItem("epinfo_subdl_key") || "";
+var sdCache = [], sdLoadedIdx = null, sdPendingIdx = null;
+var sdTimerId = null;
+var SD_TIMEOUT_MS = 30000;
+
+(function() {
+  if (SDK) {
+    document.getElementById("sd-key-box").style.display = "none";
+    document.getElementById("sd-key-ok").style.display = "flex";
+  }
+})();
+
+function doSaveSdKey() {
+  var key = (document.getElementById("sd-key-input").value || "").trim();
+  var msg = document.getElementById("sd-key-msg");
+  if (!key) { msg.style.color = "#ff453a"; msg.textContent = "Please paste your key."; return; }
+  localStorage.setItem("epinfo_subdl_key", key); SDK = key;
+  msg.style.color = "#30d158"; msg.textContent = "✓ Saved!";
+  setTimeout(function() {
+    document.getElementById("sd-key-box").style.display = "none";
+    document.getElementById("sd-key-ok").style.display = "flex";
+    if (document.getElementById("sd-search-btn") && localStorage.getItem("epinfo_ep")) {
+      document.getElementById("sd-search-btn").disabled = false;
+    }
+  }, 700);
+}
+function doChangeSdKey() {
+  document.getElementById("sd-key-box").style.display = "block";
+  document.getElementById("sd-key-ok").style.display = "none";
+  document.getElementById("sd-key-input").value = SDK;
+  document.getElementById("sd-key-msg").textContent = "";
+}
+
+function sdCancelTimer() {
+  if (sdTimerId !== null) { clearTimeout(sdTimerId); sdTimerId = null; }
+}
+function sdEnableMainBtn() { document.getElementById("sd-search-btn").disabled = false; }
+function sdDisableMainBtn() { document.getElementById("sd-search-btn").disabled = true; }
+
+function doSdSearch(manualQuery) {
+  sdCancelTimer();
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  manualQuery = (manualQuery && String(manualQuery).trim()) || null;
+
+  if (!SDK) {
+    document.getElementById("sd-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">Set the SubDL API Key above first.</div>';
+    return;
+  }
+  if (!manualQuery && !saved) {
+    document.getElementById("sd-results").innerHTML = '<div class="msg" style="padding:6px 0">Select an episode first, or use the custom search below.</div>';
+    return;
+  }
+
+  var year = null;
+  if (saved && saved.isMovie) {
+    var ad = String(saved.airDate || saved.code || "");
+    var ym = ad.match(/(\d{4})/);
+    if (ym) year = ym[1];
+  }
+
+  sdDisableMainBtn();
+  document.getElementById("sd-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>'
+    + '<span id="sd-prog">' + (manualQuery ? "Searching for &ldquo;" + htmlEsc(manualQuery) + "&rdquo;…" : "Searching…") + '</span>'
+    + ' <button onclick="sdCancel()" style="margin-left:8px;background:none;border:none;color:rgba(255,150,150,.8);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Cancel</button></div>';
+
+  iina.postMessage("searchSubdl", {
+    key:           SDK,
+    tmdbKey:       TK,
+    tmdbId:        saved ? saved.tmdbId       : null,
+    imdbId:        saved ? saved.imdbId       : null,
+    parentImdbId:  saved ? saved.parentImdbId : null,
+    query:         saved ? (saved.showTitle || saved.epTitle || "") : "",
+    showTitle:     saved ? (saved.showTitle || "") : "",
+    epTitle:       saved ? (saved.epTitle || "")   : "",
+    manualQuery:   manualQuery,
+    lang:          (document.getElementById("sd-lang").value || "EN").trim().toUpperCase() || "EN",
+    isMovie:       saved ? !!saved.isMovie : !!manualQuery,
+    season:        saved ? (saved.season  || null) : null,
+    episode:       saved ? (saved.episode || null) : null,
+    year:          year
+  });
+
+  sdTimerId = setTimeout(function() {
+    sdTimerId = null;
+    sdEnableMainBtn();
+    document.getElementById("sd-results").innerHTML =
+      '<div class="msg" style="padding:6px 0;color:rgba(255,150,150,.85)">Request timed out after '
+      + Math.round(SD_TIMEOUT_MS/1000) + 's. SubDL may be slow or down.</div>'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the custom search above or check OpenSubtitles.</div>';
+  }, SD_TIMEOUT_MS);
+}
+
+function sdCancel() {
+  sdCancelTimer();
+  sdEnableMainBtn();
+  document.getElementById("sd-results").innerHTML =
+    '<div class="msg" style="padding:6px 0;color:rgba(255,255,255,.5)">Search cancelled.</div>';
+}
+
+iina.onMessage("subdlSearchProgress", function(d) {
+  var el = document.getElementById("sd-prog");
+  if (el && d && d.text) el.textContent = d.text;
+});
+iina.onMessage("subdlSearchResult", function(d) {
+  sdCancelTimer();
+  sdEnableMainBtn();
+  cacheResolvedImdbIds({ imdb: d.resolvedImdb, parentImdb: d.resolvedParentImdb });
+  var triedSuffix = (d.triedSteps && d.triedSteps.length)
+    ? '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:4px">Tried: ' + htmlEsc(d.triedSteps.join(" → ")) + '</div>'
+    : '';
+  if (d.error) {
+    document.getElementById("sd-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: '
+      + htmlEsc(String(d.error)) + '</div>'
+      + triedSuffix
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the custom search above or a different language.</div>';
+    return;
+  }
+
+  var allResults = d.results || [];
+
+  // SubDL's API often returns subtitles that don't match the season/episode
+  // filter sent in the request — many uploaders don't tag season/episode at
+  // all (the subdl_api_cli docs explicitly warn about this). So we filter
+  // client-side to keep only:
+  //   - subtitles tagged with the matching season+episode
+  //   - subtitles tagged with matching season + 0/null episode (full-season packs)
+  //   - subtitles with both 0/null season and episode (untagged — could be anything)
+  // For TV-episode searches we prefer exact matches; if exact filter leaves
+  // nothing, fall back to full-season packs; if those leave nothing, fall
+  // back to showing everything (untagged uploads might still be the right one).
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  var displayed = allResults;
+  var filterNote = "";
+  if (saved && !saved.isMovie && saved.season && saved.episode) {
+    var s = parseInt(saved.season), e = parseInt(saved.episode);
+    var exact = allResults.filter(function(item) {
+      return parseInt(item.season) === s && parseInt(item.episode) === e;
+    });
+    var seasonPacks = allResults.filter(function(item) {
+      return parseInt(item.season) === s && (!item.episode || parseInt(item.episode) === 0);
+    });
+    if (exact.length) {
+      displayed = exact;
+      filterNote = "Filtered to S" + s + "E" + e + " · " + exact.length + " of " + allResults.length;
+    } else if (seasonPacks.length) {
+      displayed = seasonPacks;
+      filterNote = "No episode-specific subs · showing " + seasonPacks.length + " season pack(s)";
+    } else {
+      // Keep everything but warn
+      filterNote = "No exact match · showing all " + allResults.length + " results (uploader didn't tag S/E)";
+    }
+  }
+  // Assign to outer-scope variable (no shadowing)
+  sdCache = displayed;
+  sdLoadedIdx = null;
+  sdPendingIdx = null;
+
+  if (!sdCache.length) {
+    document.getElementById("sd-results").innerHTML = '<div class="msg" style="padding:6px 0">No results found.</div>'
+      + triedSuffix
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the custom search above or a different language.</div>';
+    return;
+  }
+  renderSd();
+  if (filterNote) {
+    var box = document.getElementById("sd-results");
+    var note = document.createElement("div");
+    note.style.cssText = "font-size:10px;color:rgba(255,255,255,.4);margin-top:6px;text-align:center";
+    note.textContent = filterNote;
+    box.appendChild(note);
+  }
+});
+
+function renderSd() {
+  var html = '<div class="sub-none-row"><span>No subtitle</span><button class="sub-none-btn' + (sdLoadedIdx === -1 ? " on" : "") + '" onclick="doSdNone()">Select</button></div>';
+  sdCache.forEach(function(item, i) {
+    var name = item.release_name || item.name || "Unknown";
+    // Trim "SUBDL.com::" prefix that often appears in `name`
+    name = String(name).replace(/^SUBDL\.com::/i, "").replace(/\.zip$/i, "");
+    var lang = (item.lang || item.language || "?");
+    var langU = lang.length <= 3 ? lang.toUpperCase() : (lang.charAt(0).toUpperCase() + lang.slice(1));
+    var author = item.author || "";
+    var sea = item.season, epi = item.episode;
+    var meta = langU + " · SRT" + (author ? " · " + author : "");
+    if (sea || epi) {
+      // 0/null means full-season pack
+      meta += (sea && epi) ? " · S" + sea + "E" + epi : " · Full season";
+    }
+    var dis = item.url ? "" : " disabled";
+    html += '<div class="sub-row"><div class="sub-info"><div class="sub-name" title="' + htmlEsc(name) + '">' + htmlEsc(name) + '</div><div class="sub-meta">' + htmlEsc(meta) + '</div></div>' +
+      '<button class="sub-load' + (sdLoadedIdx === i ? " loaded" : "") + '"' + dis + ' onclick="doSdLoad(' + i + ')">' + (sdLoadedIdx === i ? "✓ Loaded" : sdPendingIdx === i ? "…" : "Load") + '</button></div>';
+  });
+  document.getElementById("sd-results").innerHTML = html;
+}
+
+function doSdLoad(i) {
+  var item = sdCache[i];
+  if (!item || !item.url) return;
+  sdPendingIdx = i;
+  renderSd();
+  iina.postMessage("loadSubdlSub", { url: item.url, idx: i });
+}
+iina.onMessage("subdlLoadResult", function(d) {
+  if (d.success) {
+    sdLoadedIdx = sdPendingIdx;
+    sdPendingIdx = null;
+    renderSd();
+  } else {
+    sdPendingIdx = null;
+    renderSd();
+    var err = d.error || "Failed to load subtitle";
+    var box = document.getElementById("sd-results");
+    var note = document.createElement("div");
+    note.style.cssText = "padding:6px 0;color:rgba(255,100,100,.8);font-size:11px";
+    note.textContent = "Load failed: " + err;
+    box.insertBefore(note, box.firstChild);
+  }
+});
+function doSdNone() { sdLoadedIdx = -1; sdPendingIdx = null; iina.postMessage("clearSub", {}); renderSd(); }
+function resetSd() {
+  sdCancelTimer();
+  sdCache = []; sdLoadedIdx = null; sdPendingIdx = null;
+  document.getElementById("sd-results").innerHTML = '<div class="msg" style="padding:6px 0">Set API Key above first.</div>';
+}
+
 // ── OpenSubtitles.com ─────────────────────────────────────────
 var OSK = localStorage.getItem("epinfo_osub_key")   || "";
 var OST = localStorage.getItem("epinfo_osub_token") || "";
@@ -925,6 +1405,7 @@ var osCache = [], osLoadedIdx = null, osPendingIdx = null;
     }
   }
   if (OSK && document.getElementById("wz-search-btn")) document.getElementById("os-search-btn").disabled = false;
+  // v1.2.1: manual UI is always usable — no init-time toggling needed
 })();
 
 function doSaveOsKey() {
@@ -937,6 +1418,7 @@ function doSaveOsKey() {
     document.getElementById("os-key-box").style.display = "none";
     document.getElementById("os-key-ok").style.display = "flex";
     document.getElementById("os-search-btn").disabled = false;
+    // v1.2.1: manual UI always usable, no toggling
     // API key is now set — enable login
     var loginBtn = document.getElementById("os-login-btn");
     loginBtn.disabled = false; loginBtn.style.opacity = "1";
@@ -981,25 +1463,158 @@ function doOsLogout() {
   document.getElementById("os-login-msg").textContent = "";
 }
 function resetOs() {
+  osCancelTimer();
   osCache = []; osLoadedIdx = null; osPendingIdx = null;
   document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Set API Key above first.</div>';
+  // v1.2.1: manual search inputs stay usable; we don't toggle them.
 }
-function doOsSearch() {
+// ── OpenSubtitles search with sidebar-side timeout (v1.2.1) ───
+// Sidebar runs in a regular WebView so its setTimeout is reliable. We
+// enforce the deadline here as the authoritative timeout — main.js also
+// races a timeout, but we don't depend on it.
+var osTimerId = null;
+var OS_TIMEOUT_MS = 30000;
+
+function osCancelTimer() {
+  if (osTimerId !== null) { clearTimeout(osTimerId); osTimerId = null; }
+}
+// Note (v1.2.1): only toggle the main "Search OpenSubtitles" button.
+// The custom-search input stays usable at all times so the user can fire
+// a different search even while another is in flight (we just cancel the
+// old timer and start a new one).
+function osEnableMainBtn() { document.getElementById("os-search-btn").disabled = false; }
+function osDisableMainBtn() { document.getElementById("os-search-btn").disabled = true; }
+
+function doOsSearch(manualQuery) {
+  osCancelTimer();
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
-  if (!saved || !OSK) { document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Need episode + API Key.</div>'; return; }
-  var match = saved.code ? saved.code.match(/S(\d+)E(\d+)/i) : null;
-  document.getElementById("os-search-btn").disabled = true;
-  document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>Searching…</div>';
-  iina.postMessage("searchSubs", { key: OSK, token: OST, query: saved.showTitle || saved.epTitle || "", lang: (document.getElementById("os-lang").value || "en").trim() || "en", isMovie: saved.isMovie || false, season: match ? parseInt(match[1]) : null, episode: match ? parseInt(match[2]) : null });
+
+  manualQuery = (manualQuery && String(manualQuery).trim()) || null;
+
+  // Manual search needs only an OS API key. Auto-search needs a saved episode.
+  if (!OSK) {
+    document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">Set the OpenSubtitles API Key above first.</div>';
+    return;
+  }
+  if (!manualQuery && !saved) {
+    document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Select an episode first, or use the custom search below.</div>';
+    return;
+  }
+
+  var match = (saved && saved.code) ? saved.code.match(/S(\d+)E(\d+)/i) : null;
+  // Movies: airDate stored as "YYYY-MM-DD" (or "YYYY"). Pull year for the
+  // year= param which improves OS matching for movies.
+  var year = null;
+  if (saved && saved.isMovie) {
+    var ad = String(saved.airDate || saved.code || "");
+    var ym = ad.match(/(\d{4})/);
+    if (ym) year = ym[1];
+  }
+
+  osDisableMainBtn();
+  document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0"><span class="sp"></span>'
+    + '<span id="os-prog">' + (manualQuery ? "Searching for &ldquo;" + htmlEsc(manualQuery) + "&rdquo;…" : "Searching…") + '</span>'
+    + ' <button onclick="osCancel()" style="margin-left:8px;background:none;border:none;color:rgba(255,150,150,.8);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Cancel</button></div>';
+
+  iina.postMessage("searchSubs", {
+    key:           OSK,
+    token:         OST,
+    tmdbKey:       TK,                                       // v1.2.1: for lazy IMDB resolve
+    tmdbId:        saved ? saved.tmdbId       : null,
+    imdbId:        saved ? saved.imdbId       : null,
+    parentImdbId:  saved ? saved.parentImdbId : null,
+    query:         saved ? (saved.showTitle || saved.epTitle || "") : "",
+    manualQuery:   manualQuery,
+    lang:          (document.getElementById("os-lang").value || "en").trim() || "en",
+    isMovie:       saved ? !!saved.isMovie : !!manualQuery,
+    season:        match ? parseInt(match[1]) : null,
+    episode:       match ? parseInt(match[2]) : null,
+    year:          year
+  });
+
+  // Sidebar-side hard deadline — fires no matter what main.js is doing
+  osTimerId = setTimeout(function() {
+    osTimerId = null;
+    osEnableMainBtn();
+    document.getElementById("os-results").innerHTML =
+      '<div class="msg" style="padding:6px 0;color:rgba(255,150,150,.85)">Request timed out after '
+      + Math.round(OS_TIMEOUT_MS/1000) + 's. The OpenSubtitles API may be slow or down.</div>'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the custom search above, a different language, or wait and retry.</div>';
+  }, OS_TIMEOUT_MS);
 }
+
+function osCancel() {
+  osCancelTimer();
+  osEnableMainBtn();
+  document.getElementById("os-results").innerHTML =
+    '<div class="msg" style="padding:6px 0;color:rgba(255,255,255,.5)">Search cancelled.</div>';
+}
+
+iina.onMessage("subSearchProgress", function(d) {
+  var el = document.getElementById("os-prog");
+  if (el && d && d.text) el.textContent = d.text;
+});
 iina.onMessage("subSearchResult", function(d) {
-  document.getElementById("os-search-btn").disabled = false;
-  if (d.error) { document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: ' + htmlEsc(d.error) + '</div>'; return; }
+  osCancelTimer();
+  osEnableMainBtn();
+  cacheResolvedImdbIds({ imdb: d.resolvedImdb, parentImdb: d.resolvedParentImdb });
+  var triedSuffix = (d.triedSteps && d.triedSteps.length)
+    ? '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:4px">Tried: ' + htmlEsc(d.triedSteps.join(" → ")) + '</div>'
+    : '';
+  if (d.error) {
+    document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,100,100,.8)">Error: '
+      + htmlEsc(String(d.error)) + '</div>'
+      + triedSuffix
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the custom search above or a different language. The "View on opensubtitles.org →" link below often has subs the API hasn\'t indexed yet.</div>';
+    return;
+  }
   osCache = d.results || [];
-  if (!osCache.length) { document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">No results.</div>'; return; }
+  if (!osCache.length) {
+    document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">No results found.</div>'
+      + triedSuffix
+      + '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px">Try the custom search above or a different language. The "View on opensubtitles.org →" link below often has subs the API hasn\'t indexed yet.</div>';
+    return;
+  }
   renderOs();
 });
+
+// opensubtitles.org website link (v1.2.1) — always visible whenever we have
+// an IMDB id. The legacy website's database is wider than the .com API
+// (uploaders push there first; .com lags by days/weeks). User clicks the
+// link, browser handles Cloudflare automatically, they download the .srt
+// and drag into IINA. The button is shown once an episode is identified
+// and is updated whenever IMDB resolution completes.
+//
+// URL formats:
+//   TV episode/show:  /search/sublanguageid-all/imdbid-{episode_or_show_imdb}
+//   Movie:            /search/sublanguageid-all/imdbid-{movie_imdb}/idmovie-{numeric}
+// We don't have the .org idmovie numeric id, so for movies we use the IMDB
+// id form which redirects to the proper movie page.
+function updateOsDotOrgLink() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  var row  = document.getElementById("os-dotorg-row");
+  var link = document.getElementById("os-dotorg-link");
+  if (!row || !link) return;
+  if (!saved) { row.style.display = "none"; return; }
+  // Prefer episode-level IMDB id (most precise); fall back to show/movie level
+  var rawId = saved.imdbId || saved.parentImdbId || "";
+  var id    = String(rawId).replace(/^tt/i, "").replace(/^0+/, "");
+  if (!id) { row.style.display = "none"; return; }
+  var url = "https://www.opensubtitles.org/en/search/sublanguageid-all/imdbid-" + encodeURIComponent(id);
+  link.setAttribute("data-url", url);
+  row.style.display = "block";
+}
+
+// Open the .org link in the user's default browser (v1.2.1).
+// IINA's WebView ignores target="_blank" — we have to round-trip through
+// main.js, which calls iina.utils.openURL.
+function openOsDotOrg() {
+  var link = document.getElementById("os-dotorg-link");
+  var url  = link ? link.getAttribute("data-url") : "";
+  if (url) iina.postMessage("openExternalUrl", { url: url });
+}
 function renderOs() {
   var html = '<div class="sub-none-row"><span>No subtitle</span><button class="sub-none-btn' + (osLoadedIdx === -1 ? " on" : "") + '" onclick="doOsNone()">Select</button></div>';
   osCache.forEach(function(item, i) {
