@@ -1,9 +1,9 @@
 {
   "name": "Episode Info",
   "identifier": "com.Zain-Imam.episodeinfo",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "ghRepo": "Zain-Imam/iina-episode-info",
-  "ghVersion": 3,
+  "ghVersion": 4,
   "author": {
     "name": "Zain Imam",
     "url": "https://github.com/Zain-Imam"
@@ -13,14 +13,17 @@
   "permissions": [
     "show-osd",
     "video-overlay",
-    "network-request"
+    "network-request",
+    "file-system"
   ],
   "allowedDomains": [
     "api.themoviedb.org",
     "image.tmdb.org",
     "sub.wyzie.ru",
     "sub.wyzie.io",
-    "api.opensubtitles.com"
+    "api.opensubtitles.com",
+    "api.subdl.com",
+    "dl.subdl.com"
   ],
   "sidebarTab": {
     "name": "Episode Info"
