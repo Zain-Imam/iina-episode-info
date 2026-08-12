@@ -1,10 +1,10 @@
 // ============================================================
-// IINA Plugin: Episode Info  v1.2.1
+// IINA Plugin: Episode Info
 // ============================================================
 
 const { core, event, overlay, sidebar, utils, file } = iina;
 
-// ── Helpers (new in v1.2.1) ──────────────────────────────────
+// ── Helpers ──────────────────────────────────
 // Convert any thrown value / API error payload into a readable string.
 // Without this, sidebars could show "Error: [object Object]".
 function errStr(e) {
@@ -47,7 +47,7 @@ var HTTP_TIMEOUT_MS = 10000; // Per-call budget — sidebar enforces total budge
 // requests, set it up to your application/script name with version".
 var OS_USER_AGENT = "EpisodeInfo v1.2.1";
 
-// ── Lazy IMDB ID resolver (v1.2.1) ───────────────────────────
+// ── Lazy IMDB ID resolver ───────────────────────────
 // Resolves BOTH the show-level (parent) and episode-level IMDB ids from TMDB.
 // The OpenSubtitles team supports two equivalent query patterns:
 //   1) ?parent_imdb_id={show}&season_number={s}&episode_number={e}
@@ -133,10 +133,10 @@ var pauseTimer         = null;
 var overlayVisible     = false;
 var overlayBgOpacity   = 0.72;
 var overlayEnabled     = true;   // toggled from sidebar, persisted in sidebar's localStorage
-var overlayVerticalPos = 50;     // 0=top, 50=center, 100=bottom (new in v1.2.0)
-var pauseDelay         = 3;      // seconds before overlay shows on pause (new in v1.2.0)
+var overlayVerticalPos = 50;     // 0=top, 50=center, 100=bottom
+var pauseDelay         = 3;      // seconds before overlay shows on pause
 var currentVideoUrl    = "";     // url of currently loaded file, sent to sidebar so it can
-                                 // restore per-URL TMDB info on re-play (new in v1.2.0)
+                                 // restore per-URL TMDB info on re-play
 
 function log(msg) {
   iina.console.log("[EpInfo] " + msg);
@@ -201,7 +201,7 @@ function registerSidebarHandlers() {
     if (overlayVisible) overlay.postMessage("setBgOpacity", { value: overlayBgOpacity });
   });
 
-  // Vertical position slider (new in v1.2.0)
+  // Vertical position slider
   sidebar.onMessage("setOverlayVerticalPos", function(d) {
     var v = parseFloat(d.value);
     if (!isNaN(v)) {
@@ -210,7 +210,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // Configurable pause delay (new in v1.2.0)
+  // Configurable pause delay
   sidebar.onMessage("setPauseDelay", function(d) {
     var v = parseFloat(d.value);
     if (!isNaN(v) && v >= 0.5) pauseDelay = v;
@@ -218,7 +218,7 @@ function registerSidebarHandlers() {
 
   // Sidebar finished its init and is ready to receive messages.
   // Re-emit the current file's URL so it can do its URL→episode lookup
-  // (new in v1.2.0). The original fileChanged from file-loaded may have
+  //. The original fileChanged from file-loaded may have
   // arrived before sidebar handlers were registered.
   sidebar.onMessage("sidebarReady", function() {
     if (currentVideoUrl) {
@@ -226,7 +226,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // Open external URL in the user's default browser (v1.2.1).
+  // Open external URL in the user's default browser.
   // Used for the "View on opensubtitles.org" link — WebView <a target=_blank>
   // doesn't work in IINA, so we round-trip through main.js.
   sidebar.onMessage("openExternalUrl", function(d) {
@@ -246,7 +246,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // Eager IMDB resolution (v1.2.1) — fires after episode selection so the
+  // Eager IMDB resolution — fires after episode selection so the
   // opensubtitles.org website link populates without waiting for a search.
   sidebar.onMessage("resolveImdbOnly", async function(d) {
     if (!d || !d.tmdbId) return;
@@ -276,7 +276,7 @@ function registerSidebarHandlers() {
       }
       try {
         var resp = await withTimeout(
-          iina.http.get("https://sub.wyzie.ru/search", {
+          iina.http.get("https://sub.wyzie.io/search", {
             params:  params,
             headers: { "Accept": "application/json" }
           }),
@@ -366,7 +366,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // ── SubDL (v1.2.1) ──────────────────────────────────────────
+  // ── SubDL ──────────────────────────────────────────
   // SubDL is a third subtitle source with a clean modern REST API and
   // independent database from OpenSubtitles. Adds coverage for content
   // that hasn't synced to OS.com yet (very recent episodes, regional
@@ -674,7 +674,7 @@ function registerSidebarHandlers() {
           headers: {
             "Api-Key":      d.key,
             "Content-Type": "application/json",
-            "User-Agent":   OS_USER_AGENT  // v1.2.1: required by OS
+            "User-Agent":   OS_USER_AGENT  // required by OS
           },
           data:    { username: d.username, password: d.password }
         }),
@@ -830,7 +830,7 @@ function registerSidebarHandlers() {
       var hdrs = {
         "Api-Key":      d.key,
         "Content-Type": "application/json",
-        "User-Agent":   OS_USER_AGENT  // v1.2.1: required by OS
+        "User-Agent":   OS_USER_AGENT  // required by OS
       };
       if (d.token) hdrs["Authorization"] = "Bearer " + d.token;
       var resp = await withTimeout(
@@ -876,7 +876,7 @@ event.on("iina.file-loaded", function() {
   setupSidebar();
   currentEpisode = null;
   hideOverlay();
-  // Capture URL so sidebar can look it up in its URL→episode map (new in v1.2.0)
+  // Capture URL so sidebar can look it up in its URL→episode map
   try { currentVideoUrl = core.status.url || ""; } catch(e) { currentVideoUrl = ""; }
   sidebar.postMessage("fileChanged", { url: currentVideoUrl });
   sidebar.postMessage("overlayStatus", { text: "Select an episode, then pause" });

@@ -109,7 +109,7 @@
   @keyframes sp { to { transform: rotate(360deg); } }
   hr.div { border: none; border-top: 1px solid rgba(255,255,255,.09); margin: 14px 0; }
 
-  /* Opacity slider (also used by Overlay Position slider, new in v1.2.0) */
+  /* Opacity slider (also used by Overlay Position slider) */
   .op-wrap { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 9px 12px; margin-bottom: 12px; }
   .op-row  { display: flex; align-items: center; gap: 8px; }
   #opacity-slider, #vpos-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; }
@@ -232,7 +232,7 @@
   </div>
   <button id="os-search-btn" class="sub-btn2" onclick="doOsSearch()" disabled>Search OpenSubtitles</button>
 
-  <!-- Always-usable manual search (v1.2.1) — independent of auto-search state -->
+  <!-- Always-usable manual search — independent of auto-search state -->
   <div id="os-manual-row" style="margin-top:7px">
     <div style="font-size:10px;color:rgba(255,255,255,.32);margin-bottom:4px">Or search by custom title (e.g. "The Boys S05E02"):</div>
     <div style="display:flex;gap:6px">
@@ -246,7 +246,7 @@
 
   <div id="os-results"><div class="msg" style="padding:6px 0">Set API Key above first.</div></div>
 
-  <!-- Always-visible opensubtitles.org website link (v1.2.1) — only shown
+  <!-- Always-visible opensubtitles.org website link — only shown
        once we have an IMDB id resolved. Direct manual escape hatch.
        Uses a button + postMessage because IINA's WebView <a target=_blank>
        does nothing — links must be opened via iina.utils.openURL in main.js. -->
@@ -262,7 +262,7 @@
 
   <hr class="div" />
 
-  <!-- SubDL (v1.2.1) -->
+  <!-- SubDL -->
   <div class="sub-hd">Subtitles — SubDL</div>
   <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
     Independent subtitle source &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">subdl.com/panel/api</strong>
@@ -326,7 +326,7 @@
   </div>
   <button id="wz-search-btn" class="sub-btn2" onclick="doWzSearch()" disabled>Search Wyzie Subs</button>
 
-  <!-- Always-visible "whole show" button (v1.2.1) — Wyzie API doesn't accept text queries,
+  <!-- Always-visible "whole show" button — Wyzie API doesn't accept text queries,
        so the only useful manual override is to drop the season/episode filter. Hidden for movies
        since there's nothing to broaden. -->
   <div id="wz-broad-row" style="margin-top:6px;display:none">
@@ -342,7 +342,7 @@
 
 <hr class="div" />
 
-<!-- ── Overlay settings (moved to bottom in v1.2.1) ─────────── -->
+<!-- ── Overlay settings (moved to bottom) ─────────── -->
 
 <!-- Overlay ON/OFF toggle -->
 <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
@@ -414,7 +414,7 @@ var descExpanded = false;
 var episodeCache = [];
 var seasonPosterUrl = "";
 
-// ── URL → episode map (new in v1.2.0) ─────────────────────────
+// ── URL → episode map ─────────────────────────
 // Each video URL gets its own remembered TMDB identification so the
 // user doesn't have to re-search when re-playing the same file/stream.
 // `currentVideoUrl` is set by the fileChanged handler.
@@ -442,7 +442,7 @@ function clearCurrentUrlFromMap() {
 }
 
 // IMDB IDs are resolved in main.js on demand at subtitle-search time
-// (v1.2.1). The sidebar caches the result back into the saved episode
+//. The sidebar caches the result back into the saved episode
 // when it comes back from a successful search — see
 // onMessage("subSearchResult"), onMessage("wyzieSearchResult"), etc.
 function cacheResolvedImdbIds(resolved) {
@@ -466,7 +466,7 @@ function cacheResolvedImdbIds(resolved) {
   }
 }
 
-// Eager IMDB resolution result (v1.2.1) — main.js sends this after a
+// Eager IMDB resolution result — main.js sends this after a
 // resolveImdbOnly request. We just cache and update the .org link.
 iina.onMessage("imdbResolved", function(d) {
   if (!d) return;
@@ -510,7 +510,7 @@ function showSaved(info) {
 
   document.getElementById("saved").classList.add("on");
 
-  // Pre-fill the always-visible OS manual search input with a sensible default (v1.2.1).
+  // Pre-fill the always-visible OS manual search input with a sensible default.
   // The input itself stays usable regardless of state — the user can fire it any time.
   var defOsQ = info.isMovie
     ? (info.epTitle || info.showTitle || "")
@@ -523,7 +523,7 @@ function showSaved(info) {
   var wzBroad = document.getElementById("wz-broad-row");
   if (wzBroad) wzBroad.style.display = info.isMovie ? "none" : "block";
 
-  // Update opensubtitles.org website link (v1.2.1)
+  // Update opensubtitles.org website link
   if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
 }
 
@@ -542,7 +542,7 @@ function toggleDesc() {
 
 function doClear() {
   // user explicitly cleared — also forget this URL's saved identification
-  // so re-playing it later doesn't auto-restore the old pick (new in v1.2.0)
+  // so re-playing it later doesn't auto-restore the old pick
   clearCurrentUrlFromMap();
   try{localStorage.removeItem("epinfo_ep");}catch(e){}
   document.getElementById("saved").classList.remove("on");
@@ -555,7 +555,7 @@ function doClear() {
   if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
   if (typeof resetOs === "function") { resetOs(); var osBtn = document.getElementById("os-search-btn"); if (osBtn) osBtn.disabled = true; }
   if (typeof resetSd === "function") { resetSd(); var sdBtn = document.getElementById("sd-search-btn"); if (sdBtn) sdBtn.disabled = true; }
-  // Hide opensubtitles.org website link (v1.2.1)
+  // Hide opensubtitles.org website link
   var orgRow = document.getElementById("os-dotorg-row");
   if (orgRow) orgRow.style.display = "none";
 }
@@ -733,7 +733,7 @@ function pickEp(idx) {
 
 function saveSelection(info) {
   try{localStorage.setItem("epinfo_ep", JSON.stringify(info));}catch(e){}
-  saveCurrentUrlInfo(info); // remember per-URL (new in v1.2.0)
+  saveCurrentUrlInfo(info); // remember per-URL
   showSaved(info);
   iina.postMessage("episodeSelected", info);
   document.getElementById("panel").innerHTML =
@@ -747,12 +747,12 @@ function saveSelection(info) {
   var osBtn = document.getElementById("os-search-btn");
   if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
   if (typeof resetOs === "function") resetOs();
-  // enable SubDL search button if key is set (v1.2.1)
+  // enable SubDL search button if key is set
   var sdBtn = document.getElementById("sd-search-btn");
   if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
   if (typeof resetSd === "function") resetSd();
 
-  // Eagerly resolve IMDB IDs (v1.2.1) so the opensubtitles.org website link
+  // Eagerly resolve IMDB IDs so the opensubtitles.org website link
   // populates without waiting for a subtitle search. Skip if already cached.
   if (TK && info.tmdbId && !info.imdbId && !info.parentImdbId) {
     iina.postMessage("resolveImdbOnly", {
@@ -794,7 +794,7 @@ iina.onMessage("overlayStatus", function(d){
   if(el) el.textContent = d.text||"";
 });
 // ── File changed ──────────────────────────────────────────────
-// Now URL-aware (new in v1.2.0). If main.js sends a URL we've already
+// Now URL-aware. If main.js sends a URL we've already
 // identified before, silently restore that pick instead of clearing.
 iina.onMessage("fileChanged", function(d){
   currentVideoUrl = (d && d.url) || "";
@@ -813,13 +813,13 @@ iina.onMessage("fileChanged", function(d){
     if (WZK) document.getElementById("wz-search-btn").disabled = false;
     var osBtn = document.getElementById("os-search-btn");
     if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
-    var sdBtn = document.getElementById("sd-search-btn");  // v1.2.1
+    var sdBtn = document.getElementById("sd-search-btn");
     if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
     iina.postMessage("episodeSelected", saved);
-    // IMDB IDs are resolved on demand in main.js (v1.2.1)
+    // IMDB IDs are resolved on demand in main.js
     // Update opensubtitles.org website link if we already have IDs cached
     if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
-    // Eagerly resolve IMDB IDs to populate the .org link (v1.2.1)
+    // Eagerly resolve IMDB IDs to populate the .org link
     if (TK && saved.tmdbId && !saved.imdbId && !saved.parentImdbId) {
       iina.postMessage("resolveImdbOnly", {
         tmdbKey: TK,
@@ -911,7 +911,7 @@ function doChangeKey() {
     document.getElementById("opacity-slider").value = p;
     document.getElementById("opacity-val").textContent = p + "%";
   }
-  // v1.2.0 fix: push the saved value to main.js once handlers are ready.
+  // Push the saved value to main.js once handlers are ready.
   // Without this, opacity always reset to default on IINA restart.
   setTimeout(function() {
     var v = localStorage.getItem("epinfo_overlay_opacity");
@@ -926,7 +926,7 @@ function doSetOpacity(val) {
   iina.postMessage("setOverlayOpacity", { value: n });
 }
 
-// ── Overlay vertical position slider (new in v1.2.0) ──────────
+// ── Overlay vertical position slider ──────────
 function vposLabel(v) {
   if (v <= 5)  return "Top";
   if (v >= 95) return "Bottom";
@@ -952,7 +952,7 @@ function doSetVPos(val) {
   iina.postMessage("setOverlayVerticalPos", { value: v });
 }
 
-// ── Pause delay (new in v1.2.0) ───────────────────────────────
+// ── Pause delay ───────────────────────────────
 (function(){
   var s = localStorage.getItem("epinfo_pause_delay");
   if (s !== null) {
@@ -964,11 +964,11 @@ function doSetVPos(val) {
     if (!isNaN(n)) iina.postMessage("setPauseDelay", { value: n });
 
     // All settings have been pushed — tell main.js it's safe to re-emit
-    // fileChanged so we can do the per-URL TMDB restore (new in v1.2.0).
+    // fileChanged so we can do the per-URL TMDB restore.
     // The original fileChanged from iina.file-loaded may have arrived
     // before our handlers were registered.
     iina.postMessage("sidebarReady", {});
-    // IMDB IDs are resolved at search time by main.js (v1.2.1)
+    // IMDB IDs are resolved at search time by main.js
     // Initialize opensubtitles.org website link visibility
     if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
   }, 800);
@@ -994,7 +994,7 @@ var wzCache = [], wzLoadedIdx = null, wzPendingIdx = null;
 (function() {
   if (WZK) { document.getElementById("wz-key-box").style.display = "none"; document.getElementById("wz-key-ok").style.display = "flex"; }
 
-  // Broad-show row visible for any TV show (v1.2.1) — always clickable;
+  // Broad-show row visible for any TV show — always clickable;
   // doWzSearch checks for Wyzie key and shows an error if missing.
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
@@ -1016,7 +1016,7 @@ function doSaveWzKey() {
     if (document.getElementById("wz-search-btn") && saved) {
       document.getElementById("wz-search-btn").disabled = false;
     }
-    // Show broad-row for TV shows (v1.2.1) — always clickable
+    // Show broad-row for TV shows — always clickable
     var bbRow = document.getElementById("wz-broad-row");
     if (bbRow && saved && !saved.isMovie) bbRow.style.display = "block";
   }, 700);
@@ -1034,9 +1034,9 @@ function resetWz() {
   wzCache = []; wzLoadedIdx = null; wzPendingIdx = null;
   document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">Select an episode, then search.</div>';
   document.getElementById("wz-clear-row").style.display = "none";
-  // v1.2.1: broad-btn always usable, no disable here
+  // broad-btn always usable, no disable here
 }
-// ── Wyzie search with sidebar-side timeout (v1.2.1) ──────────
+// ── Wyzie search with sidebar-side timeout ──────────
 var wzTimerId = null;
 var WZ_TIMEOUT_MS = 30000;
 
@@ -1068,7 +1068,7 @@ function doWzSearch(broadShow) {
     + ' <button onclick="wzCancel()" style="margin-left:8px;background:none;border:none;color:rgba(255,150,150,.8);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Cancel</button></div>';
 
   iina.postMessage("searchWyzie", {
-    tmdbKey:       TK,                              // v1.2.1: for lazy IMDB resolve
+    tmdbKey:       TK,                              // for lazy IMDB resolve
     tmdbId:        saved.tmdbId,
     imdbId:        saved.imdbId || null,
     parentImdbId:  saved.parentImdbId || null,
@@ -1104,7 +1104,7 @@ iina.onMessage("wyzieSearchProgress", function(d) {
 iina.onMessage("wyzieSearchResult", function(d) {
   wzCancelTimer();
   wzEnableInputs();
-  // Cache resolved IMDB IDs from main.js (v1.2.1)
+  // Cache resolved IMDB IDs from main.js
   cacheResolvedImdbIds({ imdb: d.resolvedImdb, parentImdb: d.resolvedParentImdb });
   var triedSuffix = (d.triedSteps && d.triedSteps.length)
     ? '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:4px">Tried: ' + htmlEsc(d.triedSteps.join(" → ")) + '</div>'
@@ -1156,7 +1156,7 @@ iina.onMessage("wyzieLoadResult", function(d) {
 function doWzNone() { wzLoadedIdx = -1; wzPendingIdx = null; iina.postMessage("clearSub", {}); renderWz(); document.getElementById("wz-clear-row").style.display = "none"; }
 function doClearSub() { wzLoadedIdx = null; wzPendingIdx = null; iina.postMessage("clearSub", {}); document.getElementById("wz-clear-row").style.display = "none"; renderWz(); }
 
-// ── SubDL (v1.2.1) ────────────────────────────────────────────
+// ── SubDL ────────────────────────────────────────────
 // Third subtitle source — independent database from OpenSubtitles, free
 // API key from subdl.com/panel/api. Returns ZIP files; main.js handles
 // download + extraction via macOS's built-in unzip.
@@ -1405,7 +1405,7 @@ var osCache = [], osLoadedIdx = null, osPendingIdx = null;
     }
   }
   if (OSK && document.getElementById("wz-search-btn")) document.getElementById("os-search-btn").disabled = false;
-  // v1.2.1: manual UI is always usable — no init-time toggling needed
+  // manual UI is always usable — no init-time toggling needed
 })();
 
 function doSaveOsKey() {
@@ -1418,7 +1418,7 @@ function doSaveOsKey() {
     document.getElementById("os-key-box").style.display = "none";
     document.getElementById("os-key-ok").style.display = "flex";
     document.getElementById("os-search-btn").disabled = false;
-    // v1.2.1: manual UI always usable, no toggling
+    // manual UI always usable, no toggling
     // API key is now set — enable login
     var loginBtn = document.getElementById("os-login-btn");
     loginBtn.disabled = false; loginBtn.style.opacity = "1";
@@ -1466,9 +1466,9 @@ function resetOs() {
   osCancelTimer();
   osCache = []; osLoadedIdx = null; osPendingIdx = null;
   document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Set API Key above first.</div>';
-  // v1.2.1: manual search inputs stay usable; we don't toggle them.
+  // manual search inputs stay usable; we don't toggle them.
 }
-// ── OpenSubtitles search with sidebar-side timeout (v1.2.1) ───
+// ── OpenSubtitles search with sidebar-side timeout ───
 // Sidebar runs in a regular WebView so its setTimeout is reliable. We
 // enforce the deadline here as the authoritative timeout — main.js also
 // races a timeout, but we don't depend on it.
@@ -1478,7 +1478,7 @@ var OS_TIMEOUT_MS = 30000;
 function osCancelTimer() {
   if (osTimerId !== null) { clearTimeout(osTimerId); osTimerId = null; }
 }
-// Note (v1.2.1): only toggle the main "Search OpenSubtitles" button.
+// Note: only toggle the main "Search OpenSubtitles" button.
 // The custom-search input stays usable at all times so the user can fire
 // a different search even while another is in flight (we just cancel the
 // old timer and start a new one).
@@ -1520,7 +1520,7 @@ function doOsSearch(manualQuery) {
   iina.postMessage("searchSubs", {
     key:           OSK,
     token:         OST,
-    tmdbKey:       TK,                                       // v1.2.1: for lazy IMDB resolve
+    tmdbKey:       TK,                                       // for lazy IMDB resolve
     tmdbId:        saved ? saved.tmdbId       : null,
     imdbId:        saved ? saved.imdbId       : null,
     parentImdbId:  saved ? saved.parentImdbId : null,
@@ -1579,7 +1579,7 @@ iina.onMessage("subSearchResult", function(d) {
   renderOs();
 });
 
-// opensubtitles.org website link (v1.2.1) — always visible whenever we have
+// opensubtitles.org website link — always visible whenever we have
 // an IMDB id. The legacy website's database is wider than the .com API
 // (uploaders push there first; .com lags by days/weeks). User clicks the
 // link, browser handles Cloudflare automatically, they download the .srt
@@ -1607,7 +1607,7 @@ function updateOsDotOrgLink() {
   row.style.display = "block";
 }
 
-// Open the .org link in the user's default browser (v1.2.1).
+// Open the .org link in the user's default browser.
 // IINA's WebView ignores target="_blank" — we have to round-trip through
 // main.js, which calls iina.utils.openURL.
 function openOsDotOrg() {

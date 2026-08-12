@@ -1,0 +1,388 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1240 930" width="1240" height="930" role="img" aria-label="How Episode Info works: IINA tells the plugin when you pause or open a file, the plugin talks to the sidebar and the overlay and fetches information from TMDB and three subtitle sites; below, the pause-to-overlay flow and how subtitles are found">
+<title>Episode Info — How It Works</title>
+
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#0c1119"/>
+    <stop offset="0.55" stop-color="#0d131c"/>
+    <stop offset="1" stop-color="#0a0f16"/>
+  </linearGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#141b26"/>
+    <stop offset="1" stop-color="#10161f"/>
+  </linearGradient>
+  <linearGradient id="poster" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#1f6feb"/>
+    <stop offset="1" stop-color="#a371f7"/>
+  </linearGradient>
+  <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#e6edf3"/>
+    <stop offset="1" stop-color="#79c0ff"/>
+  </linearGradient>
+  <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#0a1420"/>
+    <stop offset="1" stop-color="#070b11"/>
+  </linearGradient>
+
+  <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+    <circle cx="1.2" cy="1.2" r="1.2" fill="#2b3a4d" opacity="0.28"/>
+  </pattern>
+
+  <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="7"/>
+  </filter>
+
+  <marker id="aS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#46586e"/>
+  </marker>
+  <marker id="aB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#58a6ff"/>
+  </marker>
+  <marker id="aT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#2dd4bf"/>
+  </marker>
+  <marker id="aP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#a371f7"/>
+  </marker>
+
+  <style><![CDATA[
+    .s   { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .m   { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .h1  { font-size: 30px; font-weight: 700; letter-spacing: -0.4px; }
+    .h2  { font-size: 15px; font-weight: 700; fill: #e6edf3; }
+    .sub { font-size: 13.5px; fill: #8b949e; }
+    .kick{ font-size: 9px; letter-spacing: 2.2px; fill: #6e7681; font-weight: 600; }
+    .it  { font-size: 11px; fill: #a7b8cc; }
+    .it2 { font-size: 9.2px; fill: #6e7681; }
+    .lab { font-size: 9px; fill: #7d8ea3; }
+    .pill{ font-size: 10px; font-weight: 600; }
+
+    @keyframes dash  { to { stroke-dashoffset: -28; } }
+    .flow { stroke-dasharray: 5 9; animation: dash 1.4s linear infinite; }
+    .flow.slow { animation-duration: 2.6s; }
+
+    @keyframes breathe { 0%,100% { opacity: .10 } 50% { opacity: .34 } }
+    .breathe { animation: breathe 5s ease-in-out infinite; }
+    .d1 { animation-delay: -1.2s } .d2 { animation-delay: -2.4s } .d3 { animation-delay: -3.6s }
+
+    /* pause -> overlay demo (7s loop) */
+    @keyframes card {
+      0%, 36%   { opacity: 0; transform: translateY(10px); }
+      45%, 84%  { opacity: 1; transform: translateY(0); }
+      92%, 100% { opacity: 0; transform: translateY(10px); }
+    }
+    .card { animation: card 7s ease-in-out infinite; }
+
+    @keyframes stPlay  { 0%,17% { opacity: 1 } 18%,87% { opacity: 0 } 88%,100% { opacity: 1 } }
+    @keyframes stPause { 0%,17% { opacity: 0 } 18%,87% { opacity: 1 } 88%,100% { opacity: 0 } }
+    .gPlay  { animation: stPlay 7s linear infinite; }
+    .gPause { animation: stPause 7s linear infinite; }
+
+    @keyframes seek { 0% { stroke-dashoffset: 82 } 17% { stroke-dashoffset: 62 } 87% { stroke-dashoffset: 62 } 100% { stroke-dashoffset: 40 } }
+    .seek { animation: seek 7s linear infinite; }
+    @keyframes knob { 0% { transform: translateX(79px) } 17% { transform: translateX(167px) } 87% { transform: translateX(167px) } 100% { transform: translateX(264px) } }
+    .knob { animation: knob 7s linear infinite; }
+
+    @keyframes waitring { 0%,20% { opacity: 0; r: 4 } 24% { opacity: .9 } 40% { opacity: 0; r: 15 } 100% { opacity: 0 } }
+    .wait { animation: waitring 7s ease-out infinite; }
+
+    /* subtitle search (8s loop) */
+    @keyframes lit { 0%, 1% { opacity: 0 } 5%, 15% { opacity: 1 } 24%, 100% { opacity: 0 } }
+    .lit { animation: lit 8s ease-in-out infinite; }
+    .c1 { animation-delay: 0s } .c2 { animation-delay: 1.15s } .c3 { animation-delay: 2.3s } .c4 { animation-delay: 3.45s }
+    @keyframes hop { 0%,2% { opacity: 0 } 6%,12% { opacity: 1 } 18%,100% { opacity: 0 } }
+    .hop { animation: hop 8s ease-in-out infinite; }
+    .k1 { animation-delay: .6s } .k2 { animation-delay: 1.75s } .k3 { animation-delay: 2.9s }
+    @keyframes tail { 0%,44% { opacity: .25 } 52%, 66% { opacity: 1 } 76%, 100% { opacity: .25 } }
+    .tail { animation: tail 8s ease-in-out infinite; }
+
+    @keyframes blink { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+    .blink { animation: blink 2.6s ease-in-out infinite; }
+  ]]></style>
+</defs>
+
+<!-- canvas -->
+<rect x="0" y="0" width="1240" height="930" rx="18" fill="url(#bg)"/>
+<rect x="0" y="0" width="1240" height="930" rx="18" fill="url(#dots)"/>
+<rect x="0.5" y="0.5" width="1239" height="929" rx="18" fill="none" stroke="#1d2733"/>
+
+<!-- header -->
+<g class="s">
+  <circle cx="56" cy="52" r="7" fill="#58a6ff"/>
+  <circle cx="56" cy="52" r="13" fill="#58a6ff" opacity="0.18" class="blink"/>
+  <text x="78" y="60" class="h1" fill="url(#title)">Episode Info</text>
+  <text x="44" y="90" class="sub">Know What You Are Watching, And Find Subtitles &#8212; Without Ever Leaving IINA.</text>
+
+  <g class="m pill">
+    <rect x="1044" y="40" width="72" height="26" rx="13" fill="#161d27" stroke="#252f3d"/>
+    <text x="1080" y="57" fill="#8b949e" text-anchor="middle">IINA 1.4+</text>
+    <rect x="1124" y="40" width="72" height="26" rx="13" fill="#161d27" stroke="#252f3d"/>
+    <text x="1160" y="57" fill="#8b949e" text-anchor="middle">macOS 12+</text>
+  </g>
+  <line x1="44" y1="112" x2="1196" y2="112" stroke="#1c2531"/>
+  <text x="44" y="142" class="kick" fill="#58a6ff">HOW IT ALL FITS TOGETHER</text>
+</g>
+
+<!-- connectors -->
+<g fill="none">
+  <path id="cA" d="M254 214 H312" stroke="#58a6ff" stroke-width="1.6" class="flow" marker-end="url(#aB)"/>
+  <path id="cB" d="M312 356 H260" stroke="#46586e" stroke-width="1.4" class="flow slow" marker-end="url(#aS)"/>
+  <path id="cC" d="M580 206 H638" stroke="#2dd4bf" stroke-width="1.6" class="flow" marker-end="url(#aT)"/>
+  <path id="cD" d="M638 250 H582" stroke="#2dd4bf" stroke-width="1.4" class="flow slow" marker-end="url(#aT)"/>
+  <path id="cE" d="M580 424 H638" stroke="#a371f7" stroke-width="1.6" class="flow" marker-end="url(#aP)"/>
+  <path id="cF" d="M906 196 H964" stroke="#01b4e4" stroke-width="1.6" class="flow" marker-end="url(#aB)"/>
+  <path id="cG" d="M450 462 V512 H1083 V468" stroke="#46586e" stroke-width="1.4" class="flow slow" marker-end="url(#aS)"/>
+</g>
+
+<!-- packets -->
+<g>
+  <circle r="2.8" fill="#58a6ff"><animateMotion dur="1.9s" repeatCount="indefinite"><mpath href="#cA" xlink:href="#cA"/></animateMotion></circle>
+  <circle r="2.6" fill="#2dd4bf"><animateMotion dur="2.1s" repeatCount="indefinite"><mpath href="#cC" xlink:href="#cC"/></animateMotion></circle>
+  <circle r="2.6" fill="#2dd4bf"><animateMotion dur="2.1s" begin="1s" repeatCount="indefinite"><mpath href="#cD" xlink:href="#cD"/></animateMotion></circle>
+  <circle r="2.6" fill="#a371f7"><animateMotion dur="2.3s" repeatCount="indefinite"><mpath href="#cE" xlink:href="#cE"/></animateMotion></circle>
+  <circle r="2.8" fill="#01b4e4"><animateMotion dur="2s" repeatCount="indefinite"><mpath href="#cF" xlink:href="#cF"/></animateMotion></circle>
+  <circle r="2.8" fill="#7ee787"><animateMotion dur="4.6s" repeatCount="indefinite"><mpath href="#cG" xlink:href="#cG"/></animateMotion></circle>
+  <circle r="2.8" fill="#f0883e"><animateMotion dur="4.6s" begin="1.6s" repeatCount="indefinite"><mpath href="#cG" xlink:href="#cG"/></animateMotion></circle>
+  <circle r="2.4" fill="#7d8ea3"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#cB" xlink:href="#cB"/></animateMotion></circle>
+</g>
+
+<g class="s lab" text-anchor="middle">
+  <text x="283" y="205">Signals</text>
+  <text x="286" y="347">Actions</text>
+  <text x="609" y="196">Updates</text>
+  <text x="609" y="272">Requests</text>
+  <text x="609" y="414">Details</text>
+  <text x="935" y="186">Search</text>
+  <text x="762" y="506">Fetches Episode Info And Subtitles</text>
+</g>
+
+<!-- lane A — the player -->
+<g>
+  <rect x="44" y="162" width="210" height="230" rx="14" fill="#f0b429" opacity="0.16" filter="url(#soft)" class="breathe"/>
+  <rect x="44" y="162" width="210" height="230" rx="14" fill="url(#panel)" stroke="#2a3546"/>
+  <rect x="44" y="162" width="210" height="3" rx="1.5" fill="#f0b429" opacity="0.7"/>
+  <g class="s"><text x="62" y="188" class="kick">THE PLAYER</text><text x="62" y="209" class="h2">IINA</text></g>
+  <line x1="62" y1="221" x2="236" y2="221" stroke="#212c3a"/>
+  <g class="s it">
+    <text x="62" y="250">Knows When A File Opens</text>
+    <text x="62" y="278">Knows When You Pause</text>
+    <text x="62" y="306">Shows The Overlay On Screen</text>
+    <text x="62" y="334">Loads The Subtitle Track</text>
+  </g>
+  <text x="62" y="368" class="s it2">The Player You Already Use.</text>
+</g>
+
+<!-- lane B — the plugin -->
+<g>
+  <rect x="318" y="162" width="262" height="300" rx="14" fill="#58a6ff" opacity="0.16" filter="url(#soft)" class="breathe d1"/>
+  <rect x="318" y="162" width="262" height="300" rx="14" fill="url(#panel)" stroke="#2b3b53"/>
+  <rect x="318" y="162" width="262" height="3" rx="1.5" fill="#58a6ff" opacity="0.8"/>
+  <g class="s"><text x="336" y="188" class="kick">THE PLUGIN</text><text x="336" y="209" class="h2">Episode Info</text></g>
+  <line x1="336" y1="221" x2="562" y2="221" stroke="#212c3a"/>
+  <g class="s it">
+    <text x="336" y="250">Talks To The Sidebar And Overlay</text>
+    <text x="336" y="276">Listens For What The Player Does</text>
+    <text x="336" y="302">Looks Up Episode Info</text>
+    <text x="336" y="328">Searches Every Subtitle Source</text>
+    <text x="336" y="354">Waits Your Chosen Delay Before Showing</text>
+    <text x="336" y="380">Unpacks Zipped Subtitle Files</text>
+    <text x="336" y="406">Never Hangs On A Slow Server</text>
+    <text x="336" y="432">Opens The Backup Website For You</text>
+  </g>
+</g>
+
+<!-- lane C1 — the sidebar -->
+<g>
+  <rect x="644" y="162" width="262" height="196" rx="14" fill="#2dd4bf" opacity="0.16" filter="url(#soft)" class="breathe d2"/>
+  <rect x="644" y="162" width="262" height="196" rx="14" fill="url(#panel)" stroke="#26424a"/>
+  <rect x="644" y="162" width="262" height="3" rx="1.5" fill="#2dd4bf" opacity="0.8"/>
+  <g class="s"><text x="662" y="188" class="kick">WHERE YOU CLICK</text><text x="662" y="209" class="h2">The Sidebar</text></g>
+  <line x1="662" y1="221" x2="888" y2="221" stroke="#212c3a"/>
+  <g class="s it">
+    <text x="662" y="248">Search Any Show Or Movie</text>
+    <text x="662" y="272">Pick The Season And Episode</text>
+    <text x="662" y="296">Three Subtitle Sources, Side By Side</text>
+    <text x="662" y="320">Overlay Look, Position And Timing</text>
+    <text x="662" y="344">Remembers Every File You Watch</text>
+  </g>
+</g>
+
+<!-- lane C2 — the overlay -->
+<g>
+  <rect x="644" y="386" width="262" height="84" rx="14" fill="#a371f7" opacity="0.16" filter="url(#soft)" class="breathe d3"/>
+  <rect x="644" y="386" width="262" height="84" rx="14" fill="url(#panel)" stroke="#37294f"/>
+  <rect x="644" y="386" width="262" height="3" rx="1.5" fill="#a371f7" opacity="0.8"/>
+  <text x="662" y="412" class="s h2">The Overlay Card</text>
+  <g class="s it2" fill="#8296ad">
+    <text x="662" y="432">Poster, Title, Episode Number, Rating,</text>
+    <text x="662" y="450">Air Date And Synopsis &#8212; Right On The Video</text>
+  </g>
+</g>
+
+<!-- lane D — the sources -->
+<g>
+  <rect x="970" y="162" width="226" height="306" rx="14" fill="#7ee787" opacity="0.12" filter="url(#soft)" class="breathe d1"/>
+  <rect x="970" y="162" width="226" height="306" rx="14" fill="url(#panel)" stroke="#2a3546"/>
+  <rect x="970" y="162" width="226" height="3" rx="1.5" fill="#7ee787" opacity="0.7"/>
+  <g class="s"><text x="988" y="188" class="kick">ON THE INTERNET</text><text x="988" y="209" class="h2">Where It Looks</text></g>
+  <line x1="988" y1="221" x2="1178" y2="221" stroke="#212c3a"/>
+
+  <circle cx="993" cy="243" r="3.5" fill="#01b4e4"/>
+  <text x="1006" y="248" class="s it">TMDB</text>
+  <text x="1006" y="262" class="s it2">Titles, Episodes, Posters</text>
+
+  <circle cx="993" cy="289" r="3.5" fill="#7ee787"/>
+  <text x="1006" y="294" class="s it">OpenSubtitles</text>
+  <text x="1006" y="308" class="s it2">Subtitle Search And Download</text>
+
+  <circle cx="993" cy="335" r="3.5" fill="#f0883e"/>
+  <text x="1006" y="340" class="s it">SubDL</text>
+  <text x="1006" y="354" class="s it2">Subtitle Search And Download</text>
+
+  <circle cx="993" cy="381" r="3.5" fill="#a371f7"/>
+  <text x="1006" y="386" class="s it">Wyzie Subs</text>
+  <text x="1006" y="400" class="s it2">Free, No Account Needed</text>
+
+  <line x1="988" y1="418" x2="1178" y2="418" stroke="#212c3a"/>
+  <g class="s it2">
+    <text x="988" y="436">These Are The Only Sites It Contacts.</text>
+    <text x="988" y="450">No Analytics. No Tracking. Ever.</text>
+  </g>
+</g>
+
+<!-- section 2 -->
+<text x="44" y="552" class="s kick" fill="#58a6ff">TWO THINGS WORTH SEEING</text>
+
+<!-- panel L : pause -> overlay -->
+<g>
+  <rect x="44" y="572" width="536" height="280" rx="14" fill="url(#panel)" stroke="#232e3d"/>
+  <g class="s">
+    <text x="62" y="598" class="kick">FLOW 01</text>
+    <text x="62" y="620" class="h2">Pause, And The Card Appears</text>
+    <text x="62" y="640" class="it2" fill="#7d8ea3">Pause The Video. A Moment Later The Card Slides In. Press Play And It Disappears.</text>
+  </g>
+
+  <!-- mock player -->
+  <rect x="72" y="652" width="480" height="176" rx="10" fill="url(#screen)" stroke="#1e2a38"/>
+  <g opacity="0.5">
+    <circle cx="430" cy="700" r="46" fill="#1f6feb" opacity="0.10"/>
+    <circle cx="150" cy="790" r="60" fill="#a371f7" opacity="0.08"/>
+  </g>
+
+  <!-- transport state -->
+  <g class="gPlay">
+    <path d="M92 668 L104 675 L92 682 Z" fill="#7ee787"/>
+    <text x="112" y="680" class="s it2" fill="#7ee787">Playing</text>
+  </g>
+  <g class="gPause" opacity="0">
+    <rect x="92" y="668" width="4" height="14" rx="1" fill="#f0b429"/>
+    <rect x="100" y="668" width="4" height="14" rx="1" fill="#f0b429"/>
+    <text x="112" y="680" class="s it2" fill="#f0b429">Paused</text>
+  </g>
+
+  <!-- delay ping -->
+  <circle cx="98" cy="700" r="4" fill="none" stroke="#f0b429" stroke-width="1.4" class="wait" opacity="0"/>
+
+  <!-- info card -->
+  <g class="card" opacity="0">
+    <rect x="104" y="696" width="300" height="112" rx="10" fill="#0e1620" stroke="#2b3b53" opacity="0.97"/>
+    <rect x="116" y="708" width="52" height="76" rx="5" fill="url(#poster)" opacity="0.85"/>
+    <rect x="180" y="712" width="128" height="9" rx="4.5" fill="#e6edf3" opacity="0.85"/>
+    <rect x="180" y="728" width="92" height="7" rx="3.5" fill="#79c0ff" opacity="0.7"/>
+    <rect x="316" y="710" width="46" height="15" rx="7.5" fill="#1f2c3d" stroke="#2b3b53"/>
+    <text x="339" y="721" class="m" font-size="8.5" fill="#79c0ff" text-anchor="middle">S01E04</text>
+    <rect x="180" y="746" width="200" height="5" rx="2.5" fill="#8b949e" opacity="0.35"/>
+    <rect x="180" y="757" width="186" height="5" rx="2.5" fill="#8b949e" opacity="0.3"/>
+    <rect x="180" y="768" width="164" height="5" rx="2.5" fill="#8b949e" opacity="0.25"/>
+    <circle cx="186" cy="789" r="3" fill="#f0b429"/>
+    <text x="196" y="792" class="s it2" fill="#8b949e">Rating, Air Date And Synopsis From TMDB</text>
+  </g>
+
+  <!-- seek bar -->
+  <line x1="92" y1="814" x2="532" y2="814" stroke="#1e2a38" stroke-width="3" stroke-linecap="round"/>
+  <line x1="92" y1="814" x2="532" y2="814" stroke="#58a6ff" stroke-width="3" stroke-linecap="round"
+        pathLength="100" stroke-dasharray="100" class="seek"/>
+  <g class="knob"><circle cx="92" cy="814" r="4.5" fill="#e6edf3"/></g>
+</g>
+
+<!-- panel R : finding subtitles -->
+<g>
+  <rect x="620" y="572" width="576" height="280" rx="14" fill="url(#panel)" stroke="#232e3d"/>
+  <g class="s">
+    <text x="638" y="598" class="kick">FLOW 02</text>
+    <text x="638" y="620" class="h2">How Subtitles Are Found</text>
+    <text x="638" y="640" class="it2" fill="#7d8ea3">Each Source Is Searched On Its Own, Casting A Wider Net Each Time, Until Something Comes Back.</text>
+  </g>
+
+  <!-- source chips -->
+  <g class="s">
+    <rect x="638" y="654" width="122" height="24" rx="12" fill="#0f2019" stroke="#1f4433"/>
+    <circle cx="653" cy="666" r="3.5" fill="#7ee787"/>
+    <text x="664" y="670" font-size="10" fill="#7ee787">OpenSubtitles</text>
+
+    <rect x="770" y="654" width="78" height="24" rx="12" fill="#231708" stroke="#4a3018"/>
+    <circle cx="785" cy="666" r="3.5" fill="#f0883e"/>
+    <text x="796" y="670" font-size="10" fill="#f0883e">SubDL</text>
+
+    <rect x="858" y="654" width="100" height="24" rx="12" fill="#1c1430" stroke="#372a55"/>
+    <circle cx="873" cy="666" r="3.5" fill="#a371f7"/>
+    <text x="884" y="670" font-size="10" fill="#a371f7">Wyzie Subs</text>
+
+    <text x="972" y="670" class="it2" fill="#6e7681">You Can Also Search Each One Yourself</text>
+  </g>
+
+  <!-- the four tries -->
+  <g>
+    <rect x="638" y="700" width="120" height="54" rx="9" fill="#0f1620" stroke="#243346"/>
+    <rect x="638" y="700" width="120" height="54" rx="9" fill="#58a6ff" fill-opacity="0.13" stroke="#58a6ff" class="lit c1" opacity="0"/>
+    <text x="698" y="722" class="s" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">Exact Episode</text>
+    <text x="698" y="739" class="s" font-size="9.2" fill="#7d8ea3" text-anchor="middle">Matched By ID</text>
+
+    <rect x="778" y="700" width="120" height="54" rx="9" fill="#0f1620" stroke="#243346"/>
+    <rect x="778" y="700" width="120" height="54" rx="9" fill="#58a6ff" fill-opacity="0.13" stroke="#58a6ff" class="lit c2" opacity="0"/>
+    <text x="838" y="722" class="s" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">The Other ID</text>
+    <text x="838" y="739" class="s" font-size="9.2" fill="#7d8ea3" text-anchor="middle">In Case One Is Missing</text>
+
+    <rect x="918" y="700" width="120" height="54" rx="9" fill="#0f1620" stroke="#243346"/>
+    <rect x="918" y="700" width="120" height="54" rx="9" fill="#58a6ff" fill-opacity="0.13" stroke="#58a6ff" class="lit c3" opacity="0"/>
+    <text x="978" y="722" class="s" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">By Title</text>
+    <text x="978" y="739" class="s" font-size="9.2" fill="#7d8ea3" text-anchor="middle">Name And Year</text>
+
+    <rect x="1058" y="700" width="120" height="54" rx="9" fill="#0f1620" stroke="#243346"/>
+    <rect x="1058" y="700" width="120" height="54" rx="9" fill="#58a6ff" fill-opacity="0.13" stroke="#58a6ff" class="lit c4" opacity="0"/>
+    <text x="1118" y="722" class="s" font-size="11.5" font-weight="700" fill="#e6edf3" text-anchor="middle">Whole Season</text>
+    <text x="1118" y="739" class="s" font-size="9.2" fill="#7d8ea3" text-anchor="middle">The Widest Net</text>
+
+    <g fill="none" stroke="#243346" stroke-width="1.6">
+      <path d="M760 727 H776"/><path d="M900 727 H916"/><path d="M1040 727 H1056"/>
+    </g>
+    <g fill="none" stroke="#58a6ff" stroke-width="1.6">
+      <path d="M760 727 H774" marker-end="url(#aB)" class="hop k1" opacity="0"/>
+      <path d="M900 727 H914" marker-end="url(#aB)" class="hop k2" opacity="0"/>
+      <path d="M1040 727 H1054" marker-end="url(#aB)" class="hop k3" opacity="0"/>
+    </g>
+  </g>
+
+  <!-- terminal fallback -->
+  <g class="tail" opacity="0.25">
+    <rect x="638" y="772" width="540" height="30" rx="15" fill="#141a12" stroke="#37421f"/>
+    <circle cx="656" cy="787" r="3.5" fill="#f0b429"/>
+    <text x="668" y="791" class="s" font-size="10" fill="#c9b458">Still Nothing? One Click Opens The OpenSubtitles Website, Already Filtered For You</text>
+  </g>
+
+  <text x="638" y="826" class="s it2" fill="#6e7681">The First Source To Come Back With Something Wins. Zipped Files Are Unpacked For You Automatically.</text>
+</g>
+
+<!-- footer feature ribbon -->
+<g class="s pill" text-anchor="middle">
+  <rect x="98" y="874" width="112" height="28" rx="14" fill="#12202f" stroke="#22344a"/><text x="154" y="892" fill="#79c0ff">Overlay On Pause</text>
+  <rect x="220" y="874" width="129" height="28" rx="14" fill="#101d20" stroke="#1e3a3c"/><text x="284.5" y="892" fill="#5ee0cf">Remembers Each File</text>
+  <rect x="359" y="874" width="145" height="28" rx="14" fill="#101d20" stroke="#1e3a3c"/><text x="431.5" y="892" fill="#5ee0cf">Three Subtitle Sources</text>
+  <rect x="514" y="874" width="166" height="28" rx="14" fill="#161d27" stroke="#252f3d"/><text x="597" y="892" fill="#adbac7">Search Any Source Yourself</text>
+  <rect x="690" y="874" width="134" height="28" rx="14" fill="#1e1408" stroke="#3d2a13"/><text x="757" y="892" fill="#f0883e">Zipped Files Handled</text>
+  <rect x="834" y="874" width="112" height="28" rx="14" fill="#161d27" stroke="#252f3d"/><text x="890" y="892" fill="#adbac7">Website Backup</text>
+  <rect x="956" y="874" width="91" height="28" rx="14" fill="#1c1430" stroke="#372a55"/><text x="1001.5" y="892" fill="#b98cff">Auto-Updates</text>
+  <rect x="1057" y="874" width="86" height="28" rx="14" fill="#101c14" stroke="#1e3a28"/><text x="1100" y="892" fill="#7ee787">No Tracking</text>
+</g>
+
+</svg>

@@ -1,0 +1,11 @@
+# Local API keys for scripts/check-apis.mjs — never commit these.
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# Build output
+*.iinaplgz
+node_modules/

@@ -1,6 +1,33 @@
+<div align="center">
+
 # Episode Info — IINA Plugin
 
-Search for episode or movie info from TMDB and display it as an overlay when you pause. Includes subtitle search across three sources: OpenSubtitles, SubDL, and Wyzie Subs.
+**Episode and movie info from TMDB, shown as an overlay the moment you pause.<br>Plus subtitle search across three independent sources.**
+
+[![API Health](https://github.com/Zain-Imam/iina-episode-info/actions/workflows/api-health.yml/badge.svg)](https://github.com/Zain-Imam/iina-episode-info/actions/workflows/api-health.yml)
+
+<br>
+
+<img src="docs/architecture.svg" alt="How Episode Info works: IINA tells the plugin when you open a file or pause, the plugin talks to the sidebar and the overlay card, and looks things up on TMDB and three subtitle sites; below, how the overlay appears on pause and how subtitles are found" width="100%">
+
+<br><br>
+
+[![Episode Info](https://img.shields.io/badge/IINA%20Plugin-Episode%20Info-1f6feb?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Zain-Imam/iina-episode-info)
+
+[![Release](https://img.shields.io/github/v/release/Zain-Imam/iina-episode-info?style=flat-square&color=58a6ff)](https://github.com/Zain-Imam/iina-episode-info/releases)
+[![Downloads](https://img.shields.io/github/downloads/Zain-Imam/iina-episode-info/total?style=flat-square&color=7ee787)](https://github.com/Zain-Imam/iina-episode-info/releases)
+[![TMDB](https://img.shields.io/badge/TMDB-01B4E4?style=flat-square&logo=themoviedatabase&logoColor=white)](https://www.themoviedb.org)
+[![OpenSubtitles](https://img.shields.io/badge/OpenSubtitles-1B9C85?style=flat-square)](https://www.opensubtitles.com)
+[![SubDL](https://img.shields.io/badge/SubDL-F0883E?style=flat-square)](https://subdl.com)
+[![Wyzie Subs](https://img.shields.io/badge/Wyzie%20Subs-A371F7?style=flat-square)](https://sub.wyzie.io)
+[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript)
+[![macOS](https://img.shields.io/badge/macOS%2012%2B-000000?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
+
+**No accounts required beyond a free TMDB key** · **No analytics, no tracking** · **Auto-updates through IINA**
+
+</div>
+
+---
 
 ## Preview
 
