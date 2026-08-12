@@ -4,6 +4,8 @@
 
 **Episode and movie info from TMDB, shown as an overlay the moment you pause.<br>Subtitle search across three independent sources, and one-click skipping of intros and credits.**
 
+*Listed in [IINA's official community plugins directory](https://github.com/iina/iina#community-plugins).*
+
 [![API Health](https://github.com/Zain-Imam/iina-episode-info/actions/workflows/api-health.yml/badge.svg)](https://github.com/Zain-Imam/iina-episode-info/actions/workflows/api-health.yml)
 
 <br>
@@ -13,6 +15,7 @@
 <br><br>
 
 [![Episode Info](https://img.shields.io/badge/IINA%20Plugin-Episode%20Info-1f6feb?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Zain-Imam/iina-episode-info)
+[![Community Plugins](https://img.shields.io/badge/IINA%20Community%20Plugins-Listed-30363d?style=for-the-badge&logo=github&logoColor=white&labelColor=1f6feb)](https://github.com/iina/iina#community-plugins)
 
 [![Release](https://img.shields.io/github/v/release/Zain-Imam/iina-episode-info?style=flat-square&color=58a6ff)](https://github.com/Zain-Imam/iina-episode-info/releases)
 [![Downloads](https://img.shields.io/github/downloads/Zain-Imam/iina-episode-info/total?style=flat-square&color=7ee787)](https://github.com/Zain-Imam/iina-episode-info/releases)
