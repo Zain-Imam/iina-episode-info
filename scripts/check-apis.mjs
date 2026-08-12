@@ -327,36 +327,53 @@ async function checkAllowlistedHostsLive() {
 }
 
 
-// 6. Skip-intro sources. All keyless; the plugin treats each as optional, so
-//    this fails only if the contract changed, not if one has no data.
+// 6. Skip-intro sources. All keyless, and the plugin treats each as optional:
+//    it queries all three and uses whatever answers. So this fails only when a
+//    source is genuinely broken, or when none of them are usable.
+//
+//    401/403/429 is not a break. These sit behind Cloudflare, which challenges
+//    datacenter IPs, so a GitHub runner can be blocked while every real user on
+//    a home connection is served normally. Verified: TheIntroDB returns 403 to
+//    Actions and 200 from a residential address at the same moment.
 async function checkSkipSources() {
   const qs = `imdb_id=${TV.imdb}&season=1&episode=1`;
-  const bad = [];
 
-  const introdb = await get(`https://api.introdb.app/segments?${qs}`);
-  if (introdb.status !== 200) bad.push(`IntroDB HTTP ${introdb.status}`);
-  else if (!("intro" in (introdb.json || {}))) bad.push("IntroDB response lost its `intro` key");
+  const sources = [
+    { name: "IntroDB", url: `https://api.introdb.app/segments?${qs}`,
+      valid: (j) => j && "intro" in j, shape: "`intro` key" },
+    { name: "TheIntroDB", url: `https://api.theintrodb.org/v2/media?${qs}`,
+      valid: (j) => j && (!("intro" in j) || Array.isArray(j.intro)), shape: "`intro` array" },
+    { name: "SkipDB", url: `https://api.skipdb.tv/api/segments?${qs}`,
+      valid: (j) => j && typeof j.segments === "object", shape: "`segments` object" },
+  ];
 
-  const theintrodb = await get(`https://api.theintrodb.org/v2/media?${qs}`);
-  if (theintrodb.status !== 200) bad.push(`TheIntroDB HTTP ${theintrodb.status}`);
-  else if (theintrodb.json && "intro" in theintrodb.json && !Array.isArray(theintrodb.json.intro)) {
-    bad.push("TheIntroDB `intro` is no longer an array");
+  const ok = [], blocked = [], broken = [];
+  for (const src of sources) {
+    let r;
+    try {
+      r = await get(src.url);
+    } catch (err) {
+      broken.push(`${src.name} unreachable (${err.message})`);
+      continue;
+    }
+    if ([401, 403, 429].includes(r.status)) {
+      blocked.push(`${src.name} HTTP ${r.status}`);
+    } else if (r.status !== 200) {
+      broken.push(`${src.name} HTTP ${r.status}`);
+    } else if (!src.valid(r.json)) {
+      broken.push(`${src.name} response lost its ${src.shape}`);
+    } else {
+      ok.push(src.name);
+    }
   }
 
-  const skipdb = await get(`https://api.skipdb.tv/api/segments?${qs}`);
-  if (skipdb.status !== 200) bad.push(`SkipDB HTTP ${skipdb.status}`);
-  else if (!skipdb.json || typeof skipdb.json.segments !== "object") {
-    bad.push("SkipDB response lost its `segments` object");
+  need(broken.length === 0, broken.join("; "));
+  need(ok.length > 0, `no source usable from here (${blocked.join(", ")})`);
+
+  if (blocked.length) {
+    return { warn: `${ok.join(", ")} healthy; ${blocked.join(", ")} — blocked from this runner, not a service fault` };
   }
-
-  need(bad.length === 0, bad.join("; "));
-
-  const withData = [
-    introdb.json?.intro ? "IntroDB" : null,
-    theintrodb.json?.intro?.length ? "TheIntroDB" : null,
-    skipdb.json?.segments?.intro ? "SkipDB" : null,
-  ].filter(Boolean);
-  return { detail: `3 sources answering, ${withData.length} with intro data (${withData.join(", ") || "none"})` };
+  return { detail: `all ${ok.length} sources answering with the expected shape` };
 }
 
 // Run everything, then write the summary.
