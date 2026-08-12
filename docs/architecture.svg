@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1240 930" width="1240" height="930" role="img" aria-label="How Episode Info works: IINA tells the plugin when you pause or open a file, the plugin talks to the sidebar and the overlay and fetches information from TMDB and three subtitle sites; below, the pause-to-overlay flow and how subtitles are found">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1240 930" width="1240" height="930" role="img" aria-label="How Episode Info works: IINA tells the plugin when you pause or open a file, the plugin talks to the sidebar and the overlay and fetches information from TMDB, three subtitle sites and three intro-timing databases; below, the pause-to-overlay flow and how subtitles are found">
 <title>Episode Info — How It Works</title>
 
 <defs>
@@ -111,7 +111,7 @@
   <circle cx="56" cy="52" r="7" fill="#58a6ff"/>
   <circle cx="56" cy="52" r="13" fill="#58a6ff" opacity="0.18" class="blink"/>
   <text x="78" y="60" class="h1" fill="url(#title)">Episode Info</text>
-  <text x="44" y="90" class="sub">Know What You Are Watching, And Find Subtitles &#8212; Without Ever Leaving IINA.</text>
+  <text x="44" y="90" class="sub">Know What You Are Watching, Find Subtitles, And Skip The Intro &#8212; All Inside IINA.</text>
 
   <g class="m pill">
     <rect x="1044" y="40" width="72" height="26" rx="13" fill="#161d27" stroke="#252f3d"/>
@@ -131,7 +131,7 @@
   <path id="cD" d="M638 250 H582" stroke="#2dd4bf" stroke-width="1.4" class="flow slow" marker-end="url(#aT)"/>
   <path id="cE" d="M580 424 H638" stroke="#a371f7" stroke-width="1.6" class="flow" marker-end="url(#aP)"/>
   <path id="cF" d="M906 196 H964" stroke="#01b4e4" stroke-width="1.6" class="flow" marker-end="url(#aB)"/>
-  <path id="cG" d="M450 462 V512 H1083 V468" stroke="#46586e" stroke-width="1.4" class="flow slow" marker-end="url(#aS)"/>
+  <path id="cG" d="M450 462 V530 H1083 V504" stroke="#46586e" stroke-width="1.4" class="flow slow" marker-end="url(#aS)"/>
 </g>
 
 <!-- packets -->
@@ -153,7 +153,7 @@
   <text x="609" y="272">Requests</text>
   <text x="609" y="414">Details</text>
   <text x="935" y="186">Search</text>
-  <text x="762" y="506">Fetches Episode Info And Subtitles</text>
+  <text x="762" y="524">Fetches Info, Subtitles And Skip Times</text>
 </g>
 
 <!-- lane A — the player -->
@@ -187,7 +187,7 @@
     <text x="336" y="354">Waits Your Chosen Delay Before Showing</text>
     <text x="336" y="380">Unpacks Zipped Subtitle Files</text>
     <text x="336" y="406">Never Hangs On A Slow Server</text>
-    <text x="336" y="432">Opens The Backup Website For You</text>
+    <text x="336" y="432">Finds Intros And Credits To Skip</text>
   </g>
 </g>
 
@@ -203,7 +203,7 @@
     <text x="662" y="272">Pick The Season And Episode</text>
     <text x="662" y="296">Three Subtitle Sources, Side By Side</text>
     <text x="662" y="320">Overlay Look, Position And Timing</text>
-    <text x="662" y="344">Remembers Every File You Watch</text>
+    <text x="662" y="344">Recent Picks And Recent Searches</text>
   </g>
 </g>
 
@@ -215,14 +215,14 @@
   <text x="662" y="412" class="s h2">The Overlay Card</text>
   <g class="s it2" fill="#8296ad">
     <text x="662" y="432">Poster, Title, Episode Number, Rating,</text>
-    <text x="662" y="450">Air Date And Synopsis &#8212; Right On The Video</text>
+    <text x="662" y="450">Three Looks &#183; Plus The Skip Button</text>
   </g>
 </g>
 
 <!-- lane D — the sources -->
 <g>
-  <rect x="970" y="162" width="226" height="306" rx="14" fill="#7ee787" opacity="0.12" filter="url(#soft)" class="breathe d1"/>
-  <rect x="970" y="162" width="226" height="306" rx="14" fill="url(#panel)" stroke="#2a3546"/>
+  <rect x="970" y="162" width="226" height="342" rx="14" fill="#7ee787" opacity="0.12" filter="url(#soft)" class="breathe d1"/>
+  <rect x="970" y="162" width="226" height="342" rx="14" fill="url(#panel)" stroke="#2a3546"/>
   <rect x="970" y="162" width="226" height="3" rx="1.5" fill="#7ee787" opacity="0.7"/>
   <g class="s"><text x="988" y="188" class="kick">ON THE INTERNET</text><text x="988" y="209" class="h2">Where It Looks</text></g>
   <line x1="988" y1="221" x2="1178" y2="221" stroke="#212c3a"/>
@@ -243,10 +243,14 @@
   <text x="1006" y="386" class="s it">Wyzie Subs</text>
   <text x="1006" y="400" class="s it2">Free, No Account Needed</text>
 
-  <line x1="988" y1="418" x2="1178" y2="418" stroke="#212c3a"/>
+  <circle cx="993" cy="424" r="3.5" fill="#f0b429"/>
+  <text x="1006" y="429" class="s it">IntroDB &#183; SkipDB &#43;1</text>
+  <text x="1006" y="443" class="s it2">Intro And Credit Timings</text>
+
+  <line x1="988" y1="455" x2="1178" y2="455" stroke="#212c3a"/>
   <g class="s it2">
-    <text x="988" y="436">These Are The Only Sites It Contacts.</text>
-    <text x="988" y="450">No Analytics. No Tracking. Ever.</text>
+    <text x="988" y="472">These Are The Only Sites It Contacts.</text>
+    <text x="988" y="486">No Analytics. No Tracking. Ever.</text>
   </g>
 </g>
 
@@ -380,7 +384,7 @@
   <rect x="359" y="874" width="145" height="28" rx="14" fill="#101d20" stroke="#1e3a3c"/><text x="431.5" y="892" fill="#5ee0cf">Three Subtitle Sources</text>
   <rect x="514" y="874" width="166" height="28" rx="14" fill="#161d27" stroke="#252f3d"/><text x="597" y="892" fill="#adbac7">Search Any Source Yourself</text>
   <rect x="690" y="874" width="134" height="28" rx="14" fill="#1e1408" stroke="#3d2a13"/><text x="757" y="892" fill="#f0883e">Zipped Files Handled</text>
-  <rect x="834" y="874" width="112" height="28" rx="14" fill="#161d27" stroke="#252f3d"/><text x="890" y="892" fill="#adbac7">Website Backup</text>
+  <rect x="834" y="874" width="112" height="28" rx="14" fill="#161d27" stroke="#252f3d"/><text x="890" y="892" fill="#adbac7">Skip Intro</text>
   <rect x="956" y="874" width="91" height="28" rx="14" fill="#1c1430" stroke="#372a55"/><text x="1001.5" y="892" fill="#b98cff">Auto-Updates</text>
   <rect x="1057" y="874" width="86" height="28" rx="14" fill="#101c14" stroke="#1e3a28"/><text x="1100" y="892" fill="#7ee787">No Tracking</text>
 </g>

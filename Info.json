@@ -1,15 +1,15 @@
 {
   "name": "Episode Info",
   "identifier": "com.Zain-Imam.episodeinfo",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "ghRepo": "Zain-Imam/iina-episode-info",
-  "ghVersion": 4,
+  "ghVersion": 5,
   "author": {
     "name": "Zain Imam",
     "url": "https://github.com/Zain-Imam"
   },
   "entry": "main.js",
-  "description": "Episode/movie info overlay on pause. With additional subtitle support.",
+  "description": "Episode/movie info overlay on pause. Subtitle search, recent picks, and skip intro.",
   "permissions": [
     "show-osd",
     "video-overlay",
@@ -23,7 +23,10 @@
     "sub.wyzie.io",
     "api.opensubtitles.com",
     "api.subdl.com",
-    "dl.subdl.com"
+    "dl.subdl.com",
+    "api.introdb.app",
+    "api.theintrodb.org",
+    "api.skipdb.tv"
   ],
   "sidebarTab": {
     "name": "Episode Info"

@@ -21,7 +21,7 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* top default; JS overrides via showData / setVerticalPos (new in v1.2.0) */
+  /* top default; JS overrides via showData / setVerticalPos */
   #wrap {
     position:fixed; top:50%; left:0; right:0;
     transform:translateY(-50%);
@@ -72,6 +72,76 @@
     box-shadow:0 6px 28px rgba(0,0,0,0.7);
     opacity:0.92;
   }
+
+  /* ── Theme: Compact ────────────────────────────────────────────
+     One line, no synopsis, no poster. Sits out of the way. */
+  #wrap[data-theme="compact"] #card { padding:14px 4%; gap:18px; }
+  #wrap[data-theme="compact"] #poster,
+  #wrap[data-theme="compact"] .ov { display:none; }
+  #wrap[data-theme="compact"] .sn {
+    font-size:11px; letter-spacing:.14em; margin-bottom:0;
+    display:inline; color:rgba(255,255,255,0.4);
+  }
+  #wrap[data-theme="compact"] .et {
+    font-size:20px; margin-bottom:0; display:inline;
+  }
+  #wrap[data-theme="compact"] .sn::after {
+    content:'·'; margin:0 8px; color:rgba(255,255,255,0.28);
+  }
+  #wrap[data-theme="compact"] .mt {
+    font-size:13px; margin-bottom:0; margin-top:5px;
+  }
+  #wrap[data-theme="compact"] #text { display:block; }
+
+  /* ── Theme: Poster Focus ───────────────────────────────────────
+     A floating rounded card rather than a full-width bar, with the
+     poster leading on the left and a fuller synopsis. */
+  #wrap[data-theme="poster"] #card {
+    width:auto; max-width:72%; margin:0 auto;
+    border-radius:16px; padding:22px 26px; gap:26px;
+    flex-direction:row-reverse;
+    box-shadow:0 18px 60px rgba(0,0,0,0.6);
+  }
+  #wrap[data-theme="poster"] #poster { width:16vw; max-width:180px; min-width:120px; }
+  #wrap[data-theme="poster"] #poster img { box-shadow:0 10px 40px rgba(0,0,0,0.8); opacity:1; }
+  #wrap[data-theme="poster"] .sn { margin-bottom:7px; }
+  #wrap[data-theme="poster"] .et { font-size:30px; margin-bottom:9px; white-space:normal; }
+  #wrap[data-theme="poster"] .mt { margin-bottom:11px; }
+  #wrap[data-theme="poster"] .ov { -webkit-line-clamp:4; font-size:15px; line-height:1.55; }
+
+  /* ── Skip pill ─────────────────────────────────────────────────
+     Independent of the info card: it must be able to show while the
+     card is hidden (during playback) and vice versa. */
+  #skip-wrap {
+    position:fixed; right:4vw; bottom:12vh;
+    display:none;              /* shown by showSkip */
+    pointer-events:none;       /* only the button itself is clickable */
+  }
+  #skip-btn {
+    pointer-events:auto;
+    display:flex; align-items:center; gap:9px;
+    background:rgba(18,18,20,0.86);
+    border:1px solid rgba(255,255,255,0.22);
+    border-radius:10px;
+    padding:12px 20px;
+    color:#fff; font-size:15px; font-weight:600;
+    font-family:inherit; cursor:pointer;
+    box-shadow:0 6px 26px rgba(0,0,0,0.55);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    transition:background .15s, border-color .15s, transform .15s;
+    animation:skipIn .22s ease-out;
+  }
+  #skip-btn:hover {
+    background:rgba(32,32,36,0.94);
+    border-color:rgba(255,255,255,0.4);
+    transform:translateY(-1px);
+  }
+  #skip-btn .ic { font-size:13px; opacity:.85; }
+  /* Keeps the hit test resolving to the button that carries data-clickable
+     rather than to a span inside it. */
+  #skip-btn > * { pointer-events:none; }
+  @keyframes skipIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 </style>
 </head>
 <body>
@@ -89,6 +159,14 @@
   </div>
 </div>
 
+<div id="skip-wrap">
+  <!-- data-clickable is required: IINA only delivers mouse events to
+       elements carrying it, even after overlay.setClickable(true). -->
+  <button id="skip-btn" data-clickable>
+    <span class="ic">&#9654;&#9654;</span><span id="skip-label">Skip Intro</span>
+  </button>
+</div>
+
 <script>
 // ── Helper: HTML-escape text going into innerHTML ─────────────
 function esc(s) {
@@ -97,7 +175,7 @@ function esc(s) {
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-// ── Apply vertical position (new in v1.2.0) ───────────────────
+// ── Apply vertical position ───────────────────
 // 0 = top, 50 = center, 100 = bottom. Snaps to edges within 5%.
 function applyVerticalPos(v) {
   var wrap = document.getElementById("wrap");
@@ -123,10 +201,13 @@ iina.onMessage("showData", function(d) {
     document.documentElement.style.setProperty("--bg-opacity", d.bgOpacity);
   }
 
-  // Apply vertical position (new in v1.2.0)
+  // Apply vertical position
   if (typeof d.verticalPos === "number") {
     applyVerticalPos(d.verticalPos);
   }
+
+  // Apply theme before the card is shown, so it never flashes Classic first
+  if (d.theme) applyTheme(d.theme);
 
   // Show title
   document.getElementById("show-name").textContent = d.showTitle || "";
@@ -163,12 +244,67 @@ iina.onMessage("setBgOpacity", function(d) {
   }
 });
 
-// ── Live vertical position update (new in v1.2.0) ────────────
+// ── Live vertical position update ────────────
 iina.onMessage("setVerticalPos", function(d) {
   if (typeof d.value === "number") {
     applyVerticalPos(d.value);
   }
 });
+
+// ── Overlay theme: classic | compact | poster ─────────────────
+function applyTheme(name) {
+  var ok = { classic: 1, compact: 1, poster: 1 };
+  document.getElementById("wrap").setAttribute("data-theme", ok[name] ? name : "classic");
+}
+
+iina.onMessage("setTheme", function(d) {
+  applyTheme(d && d.value);
+});
+
+// ── Hide only the info card; the skip pill is independent ─────
+iina.onMessage("hideCard", function() {
+  document.getElementById("wrap").style.display = "none";
+});
+
+// ── Skip pill ─────────────────────────────────────────────────
+iina.onMessage("showSkip", function(d) {
+  document.getElementById("skip-label").textContent = (d && d.label) || "Skip Intro";
+  document.getElementById("skip-wrap").style.display = "block";
+  // Replay the entry animation on each appearance
+  var b = document.getElementById("skip-btn");
+  b.style.animation = "none";
+  void b.offsetWidth;
+  b.style.animation = "";
+});
+
+iina.onMessage("hideSkip", function() {
+  document.getElementById("skip-wrap").style.display = "none";
+});
+
+// A bound listener rather than an inline onclick: inline handlers can be
+// blocked by the web view's content policy. The label changes the moment the
+// click lands, which also makes a swallowed click easy to spot.
+(function () {
+  var btn = document.getElementById("skip-btn");
+  if (!btn) return;
+  var sent = false;
+  function fire(ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    if (sent) return;              // click and mouseup must not both send
+    sent = true;
+    setTimeout(function () { sent = false; }, 800);
+    var lab = document.getElementById("skip-label");
+    if (lab) lab.textContent = "Skipping\u2026";
+    try { iina.postMessage("skipSegment", {}); } catch (e) {
+      if (lab) lab.textContent = "postMessage failed";
+    }
+  }
+  btn.addEventListener("click", fire);
+  // Some hit-test paths deliver only the low-level events; the guard above
+  // stops click and mouseup both firing.
+  btn.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
+  btn.addEventListener("mouseup", fire);
+})();
 </script>
 </body>
 </html>

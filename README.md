@@ -2,13 +2,13 @@
 
 # Episode Info — IINA Plugin
 
-**Episode and movie info from TMDB, shown as an overlay the moment you pause.<br>Plus subtitle search across three independent sources.**
+**Episode and movie info from TMDB, shown as an overlay the moment you pause.<br>Subtitle search across three independent sources, and one-click skipping of intros and credits.**
 
 [![API Health](https://github.com/Zain-Imam/iina-episode-info/actions/workflows/api-health.yml/badge.svg)](https://github.com/Zain-Imam/iina-episode-info/actions/workflows/api-health.yml)
 
 <br>
 
-<img src="docs/architecture.svg" alt="How Episode Info works: IINA tells the plugin when you open a file or pause, the plugin talks to the sidebar and the overlay card, and looks things up on TMDB and three subtitle sites; below, how the overlay appears on pause and how subtitles are found" width="100%">
+<img src="docs/architecture.svg" alt="How Episode Info works: IINA tells the plugin when you open a file or pause, the plugin talks to the sidebar and the overlay card, and looks things up on TMDB, three subtitle sites and three intro-timing databases; below, how the overlay appears on pause and how subtitles are found" width="100%">
 
 <br><br>
 
@@ -23,7 +23,7 @@
 [![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript)
 [![macOS](https://img.shields.io/badge/macOS%2012%2B-000000?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
 
-**No accounts required beyond a free TMDB key** · **No analytics, no tracking** · **Auto-updates through IINA**
+**Only a free TMDB key required** · **No analytics, no tracking** · **Auto-updates through IINA**
 
 </div>
 
@@ -37,7 +37,10 @@
 
 - **TMDB-powered episode & movie info** — search any title, see show name, episode title, code, air date, rating, synopsis, and poster
 - **Auto-overlay on pause** — info card appears when you pause, vanishes when you resume
+- **Three overlay themes** — Classic (full-width card), Compact (a single unobtrusive line), or Poster Focus (a floating card led by the poster)
 - **Customizable overlay** — adjustable shade, vertical position (top / center / bottom), and configurable pause delay
+- **Skip intro, recap and credits** — a button appears over the video when there is something to skip. No account or API key needed
+- **Recent picks & recent searches** — reuse a recent show in one click, or re-run a recent search without retyping it
 - **Per-URL memory** — once you identify a video, the show/episode is remembered against that file's URL. Re-open it later, even after restarting IINA, and your pick is restored automatically. Each URL keeps its own remembered identification
 - **Three subtitle sources, independent** — OpenSubtitles, SubDL, and Wyzie Subs each with their own search cascade. Combining them dramatically improves coverage, especially for very recent episodes that haven't synced across all databases yet
 - **opensubtitles.org website fallback** — one-click button opens the legacy site in your browser when API results are missing for fresh content. Pre-filtered by IMDB ID
@@ -84,6 +87,10 @@ You can use any combination of the three sources. They search independently, so 
 1. Go to [sub.wyzie.io/redeem](https://sub.wyzie.io/redeem) and click Generate
 2. Paste the key in the sidebar under *Subtitles — Wyzie Subs*
 
+### Nothing to set up — Skip Intro
+
+Skip intro works with no account and no API key. Open **Skip Intro & Credits** in the sidebar and turn it on.
+
 > **Tip:** OpenSubtitles' modern API sometimes lags days/weeks behind their legacy website for very recent episodes. The plugin shows a *"View on opensubtitles.org →"* button that opens the legacy site in your browser as a manual fallback.
 
 ## Usage
@@ -95,12 +102,31 @@ You can use any combination of the three sources. They search independently, so 
 
 The next time you open the same file or stream, your identification is restored automatically — no need to search again.
 
+### Skipping intros and credits
+
+Turn on **Skip Intro & Credits** in the sidebar. When playback reaches an intro, recap or the closing credits, a button appears in the corner of the video:
+
+- **Click it**, or press **⌥S** (Option-S), or use *Plugins → Skip Intro / Recap / Credits*
+- It never seeks on its own — ignore it and it fades away by itself
+
+Timings come first from the chapter markers inside your video file, which are exact and need no internet. If the file has none, three free databases — **IntroDB**, **TheIntroDB** and **SkipDB** — are asked at once, and where several agree, that agreement is preferred. Coverage is good for popular shows and thinner for very new or niche ones; the sidebar shows what was found.
+
+### Recent picks and recent searches
+
+Under the search box you'll find:
+
+- **Recent Searches** — your last 5 search terms as chips. Click one to run that search again, which is the quick way to get from one episode to the next
+- **Recent Picks** — the last 5 shows or movies you identified. Click one to apply it to whatever is playing now. Use ★ to pin a favourite so it never ages out, or × to remove it
+
+Both are stored only on your Mac.
+
 ### Customizing the overlay
 
 The sidebar has controls for:
 - **Show Overlay on Pause** — toggle the overlay entirely on/off
 - **Overlay Shade** — adjust background darkness (0–100%)
 - **Overlay Position** — anchor the card to the top, center, or bottom of the video
+- **Theme** — Classic, Compact, or Poster Focus
 - **Pause Delay** — change how many seconds to wait after pausing before the overlay appears
 - **Clear selection** — forget the saved identification for the current video so you can re-identify it
 
@@ -113,6 +139,7 @@ This plugin only contacts:
 - `api.opensubtitles.com` — for subtitle search/download (optional)
 - `api.subdl.com` / `dl.subdl.com` — for subtitle search/download (optional)
 - `sub.wyzie.ru` / `sub.wyzie.io` — for subtitle search (optional)
+- `api.introdb.app` / `api.theintrodb.org` / `api.skipdb.tv` — for intro and credit timings (only when Skip Intro is on)
 
 All API keys are stored locally in IINA's sandboxed WebView and never shared. No analytics or tracking of any kind.
 

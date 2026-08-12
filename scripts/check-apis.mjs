@@ -326,6 +326,39 @@ async function checkAllowlistedHostsLive() {
   return { detail: `${(info.allowedDomains || []).length} allow-listed hosts reachable` };
 }
 
+
+// 6. Skip-intro sources. All keyless; the plugin treats each as optional, so
+//    this fails only if the contract changed, not if one has no data.
+async function checkSkipSources() {
+  const qs = `imdb_id=${TV.imdb}&season=1&episode=1`;
+  const bad = [];
+
+  const introdb = await get(`https://api.introdb.app/segments?${qs}`);
+  if (introdb.status !== 200) bad.push(`IntroDB HTTP ${introdb.status}`);
+  else if (!("intro" in (introdb.json || {}))) bad.push("IntroDB response lost its `intro` key");
+
+  const theintrodb = await get(`https://api.theintrodb.org/v2/media?${qs}`);
+  if (theintrodb.status !== 200) bad.push(`TheIntroDB HTTP ${theintrodb.status}`);
+  else if (theintrodb.json && "intro" in theintrodb.json && !Array.isArray(theintrodb.json.intro)) {
+    bad.push("TheIntroDB `intro` is no longer an array");
+  }
+
+  const skipdb = await get(`https://api.skipdb.tv/api/segments?${qs}`);
+  if (skipdb.status !== 200) bad.push(`SkipDB HTTP ${skipdb.status}`);
+  else if (!skipdb.json || typeof skipdb.json.segments !== "object") {
+    bad.push("SkipDB response lost its `segments` object");
+  }
+
+  need(bad.length === 0, bad.join("; "));
+
+  const withData = [
+    introdb.json?.intro ? "IntroDB" : null,
+    theintrodb.json?.intro?.length ? "TheIntroDB" : null,
+    skipdb.json?.segments?.intro ? "SkipDB" : null,
+  ].filter(Boolean);
+  return { detail: `3 sources answering, ${withData.length} with intro data (${withData.join(", ") || "none"})` };
+}
+
 // Run everything, then write the summary.
 const fromDotEnv = loadDotEnv();
 
@@ -352,6 +385,7 @@ await check("SubDL — search endpoint", checkSubdl);
 await check("SubDL — download host", checkSubdlCdn);
 await check("Wyzie — search endpoint", checkWyzie);
 await check("Wyzie — host still answers directly", checkWyzieHost);
+await check("Skip-intro sources (IntroDB/TheIntroDB/SkipDB)", checkSkipSources);
 await check("All allow-listed hosts reachable", checkAllowlistedHostsLive);
 
 const failed = results.filter((r) => r.status === "fail");

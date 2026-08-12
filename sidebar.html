@@ -7,14 +7,14 @@
   body {
     font-family: -apple-system, 'Helvetica Neue', sans-serif;
     font-size: 13px; color: #ccc; background: transparent;
-    padding: 12px; overflow-x: hidden;
+    padding: 10px; overflow-x: hidden;
   }
 
   /* Saved card */
   #saved {
     display: none; background: rgba(229,9,20,.1);
     border: 1px solid rgba(229,9,20,.28); border-radius: 8px;
-    padding: 12px 12px 10px; margin-bottom: 12px;
+    padding: 10px 11px 9px; margin-bottom: 10px;
   }
   #saved.on { display: block; }
   #s-show {
@@ -26,7 +26,7 @@
   #s-meta .rat { color: #f5c518; }
 
   /* Description with show more */
-  #s-desc { font-size: 12px; color: rgba(255,255,255,.55); line-height: 1.55; margin-bottom: 6px; }
+  #s-desc { font-size: 12px; color: rgba(255,255,255,.55); line-height: 1.45; margin-bottom: 5px; }
   #s-desc.collapsed {
     display: -webkit-box; -webkit-line-clamp: 3;
     -webkit-box-orient: vertical; overflow: hidden;
@@ -47,7 +47,7 @@
   #clear-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
 
   /* Search */
-  .row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .row { display: flex; gap: 6px; margin-bottom: 8px; }
   #q {
     flex: 1; background: rgba(255,255,255,.08);
     border: 1px solid rgba(255,255,255,.14);
@@ -67,7 +67,7 @@
   /* Results */
   .rrow {
     display: flex; align-items: center; gap: 8px;
-    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.07);
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.07);
   }
   .rrow:last-child { border-bottom: none; }
   .rposter {
@@ -86,7 +86,7 @@
   .pb:hover { background: #e50914; border-color: #e50914; color: #fff; }
 
   /* Pickers */
-  .sec { margin-top: 10px; }
+  .sec { margin-top: 8px; }
   .sl { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 6px; }
   .pills { display: flex; flex-wrap: wrap; gap: 4px; }
   .pill {
@@ -98,8 +98,8 @@
   .pill.on { background: #e50914; border-color: #e50914; color: #fff; }
 
   /* Status */
-  .msg { padding: 12px 0; text-align: center; color: rgba(255,255,255,.3); font-size: 12px; }
-  .ok  { padding: 10px 0; text-align: center; color: rgba(80,200,80,.9); font-size: 12px; font-weight: 600; }
+  .msg { padding: 8px 0; text-align: center; color: rgba(255,255,255,.3); font-size: 12px; }
+  .ok  { padding: 7px 0; text-align: center; color: rgba(80,200,80,.9); font-size: 12px; font-weight: 600; }
   .sp  {
     display: inline-block; width: 12px; height: 12px;
     border: 2px solid rgba(255,255,255,.1); border-top-color: rgba(255,255,255,.5);
@@ -107,27 +107,65 @@
     margin-right: 5px; vertical-align: middle;
   }
   @keyframes sp { to { transform: rotate(360deg); } }
-  hr.div { border: none; border-top: 1px solid rgba(255,255,255,.09); margin: 14px 0; }
+  hr.div { border: none; border-top: 1px solid rgba(255,255,255,.09); margin: 10px 0; }
 
-  /* Opacity slider (also used by Overlay Position slider) */
-  .op-wrap { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 9px 12px; margin-bottom: 12px; }
+  /* Shared by the shade and position sliders */
+  .op-wrap { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 8px 10px; margin-bottom: 10px; }
   .op-row  { display: flex; align-items: center; gap: 8px; }
   #opacity-slider, #vpos-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; }
   #opacity-slider::-webkit-slider-thumb, #vpos-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #e50914; cursor: pointer; }
   #opacity-val, #vpos-val { font-size: 11px; color: rgba(255,255,255,.45); min-width: 50px; text-align: right; }
 
   /* Dismiss button */
-  #ov-dismiss { display: none; margin-bottom: 10px; }
+  #ov-dismiss { display: none; margin-bottom: 8px; }
   #ov-dismiss button { width: 100%; background: rgba(255,80,80,.15); border: 1px solid rgba(255,80,80,.35); color: rgba(255,180,180,.9); font-size: 12px; font-weight: 600; padding: 7px; border-radius: 6px; cursor: pointer; }
 
   /* Subtitle section */
   .sub-hd { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 8px; }
-  .key-box { background: rgba(255,140,0,.07); border: 1px solid rgba(255,140,0,.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  .sub-sec { margin-bottom: 2px; }
+  /* Theme pills */
+  .thm { flex:1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    color: rgba(255,255,255,.55); font-size: 10px; font-weight: 600; padding: 4px 0;
+    border-radius: 5px; cursor: pointer; font-family: inherit; transition: all .15s; }
+  .thm:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
+  .thm.on { background: rgba(229,9,20,.22); border-color: rgba(229,9,20,.55); color: #fff; }
+  /* Recent search chips */
+  .sq { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    color: rgba(255,255,255,.6); font-size: 11px; padding: 3px 9px; border-radius: 11px;
+    cursor: pointer; font-family: inherit; max-width: 100%; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; transition: all .15s; }
+  .sq:hover { background: rgba(229,9,20,.18); border-color: rgba(229,9,20,.45); color: #fff; }
+  /* Recent picks rows */
+  .rc { display: flex; align-items: center; gap: 7px; padding: 6px 7px; border-radius: 6px;
+    cursor: pointer; transition: background .12s; }
+  .rc:hover { background: rgba(255,255,255,.06); }
+  .rc-img { width: 26px; height: 38px; border-radius: 3px; flex-shrink: 0;
+    background: rgba(255,255,255,.07) center/cover no-repeat; }
+  .rc-txt { flex: 1; min-width: 0; }
+  .rc-t { font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .rc-s { font-size: 10px; color: rgba(255,255,255,.38); margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rc-b { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 3px;
+    color: rgba(255,255,255,.25); font-family: inherit; line-height: 1; }
+  .rc-b:hover { color: rgba(255,255,255,.7); }
+  .rc-b.pinned { color: #e5b400; }
+  summary.sub-hd { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+    padding: 5px 0; margin-bottom: 0; user-select: none; transition: color .15s; }
+  summary.sub-hd::-webkit-details-marker { display: none; }
+  summary.sub-hd:hover { color: rgba(255,255,255,.6); }
+  summary.sub-hd::before { content: "\25B6"; font-size: 8px; color: rgba(255,255,255,.55);
+    transition: transform .18s ease; display: inline-block; width: 10px; }
+  summary.sub-hd:hover::before { color: #fff; }
+  .sub-sec[open] > summary.sub-hd { margin-bottom: 8px; color: rgba(255,255,255,.5); }
+  .sub-sec[open] > summary.sub-hd::before { transform: rotate(90deg); color: rgba(255,255,255,.75); }
+  .key-box { background: rgba(255,140,0,.07); border: 1px solid rgba(255,140,0,.3); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
   .key-title { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,140,0,.85); margin-bottom: 4px; }
-  .key-desc  { font-size: 11px; color: rgba(255,255,255,.5); line-height: 1.5; margin-bottom: 8px; }
+  .key-desc  { font-size: 11px; color: rgba(255,255,255,.5); line-height: 1.4; margin-bottom: 6px; }
   .key-row   { display: flex; gap: 6px; margin-bottom: 5px; }
   .key-row input { flex: 1; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 6px 9px; color: #fff; font-size: 12px; font-family: inherit; outline: none; }
-  .key-msg   { font-size: 11px; min-height: 15px; color: rgba(255,255,255,.4); }
+  .key-msg:not(:empty) { margin-top: 4px; }
+  .key-msg   { font-size: 11px; min-height: 0; color: rgba(255,255,255,.4); }
   .key-ok    { background: rgba(48,209,88,.09); border: 1px solid rgba(48,209,88,.3); border-radius: 7px; padding: 6px 12px; margin-bottom: 10px; font-size: 11px; display: none; justify-content: space-between; align-items: center; }
   .lang-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .lang-lbl  { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,255,255,.35); flex-shrink: 0; }
@@ -149,7 +187,24 @@
 </style>
 </head>
 <body>
-<div id="ov-status-box" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:8px 12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px">Overlay Status</div><div id="ov-st" style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.4">Waiting...</div></div>
+<!-- Overlay controls — kept at the top, most-used first -->
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:7px 10px;margin-bottom:8px">
+  <div style="font-size:12px;font-weight:600;color:#fff">Show Overlay on Pause</div>
+  <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:10px;cursor:pointer">
+    <input type="checkbox" id="overlay-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleOverlay(this.checked)" />
+    <span id="toggle-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
+      <span id="toggle-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
+    </span>
+  </label>
+</div>
+
+<div id="ov-dismiss">
+  <button onclick="iina.postMessage('overlayCloseRequest',{})">&#10005;&nbsp; Dismiss overlay</button>
+</div>
+
+<!-- Overlay status is hidden: the card itself shows which episode is up.
+     Kept in the DOM so main.js's overlayStatus messages still have a target. -->
+<div id="ov-status-box" style="display:none;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:8px 12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px">Overlay Status</div><div id="ov-st" style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.4">Waiting...</div></div>
 
 <!-- Saved card with full details -->
 <div id="saved">
@@ -188,12 +243,29 @@
 
 <div id="panel"><div class="msg">Search above to find a show or movie.</div></div>
 
+<!-- Recent searches — retype nothing to get back to a show's episode list -->
+<div id="searches-sec" style="display:none;margin-top:8px">
+  <div class="sl" style="margin-bottom:5px">Recent Searches</div>
+  <div id="searches-list" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+</div>
+
+<!-- Recent picks — reuse a show without searching TMDB again -->
+<div id="recents-sec" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px">
+    <div class="sl" style="margin:0">Recent Picks</div>
+    <button id="rc-clear" onclick="clearRecents()"
+      style="background:none;border:none;color:rgba(255,255,255,.3);font-size:10px;cursor:pointer;padding:0;font-family:inherit">Clear all</button>
+  </div>
+  <div id="recents-list"></div>
+</div>
+
 <hr class="div" />
 
 <!-- OpenSubtitles first, Wyzie second -->
 <div id="sub-section">
   <!-- OpenSubtitles.com -->
-  <div class="sub-hd">Subtitles — OpenSubtitles.com</div>
+  <details class="sub-sec" data-k="os" open>
+    <summary class="sub-hd">Subtitles — OpenSubtitles.com</summary>
   <div id="os-key-box" class="key-box">
     <div class="key-title">⚠ API Key required (free)</div>
     <div class="key-desc">opensubtitles.com → My Account → API Consumers → Create consumer</div>
@@ -260,10 +332,12 @@
     </div>
   </div>
 
+  </details>
   <hr class="div" />
 
   <!-- SubDL -->
-  <div class="sub-hd">Subtitles — SubDL</div>
+  <details class="sub-sec" data-k="sd">
+    <summary class="sub-hd">Subtitles — SubDL</summary>
   <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
     Independent subtitle source &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">subdl.com/panel/api</strong>
   </div>
@@ -300,10 +374,12 @@
 
   <div id="sd-results"><div class="msg" style="padding:6px 0">Set API Key above first.</div></div>
 
+  </details>
   <hr class="div" />
 
   <!-- Wyzie Subs -->
-  <div class="sub-hd">Subtitles — Wyzie Subs</div>
+  <details class="sub-sec" data-k="wz">
+    <summary class="sub-hd">Subtitles — Wyzie Subs</summary>
   <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
     OpenSubtitles · Podnapisi + more &nbsp;·&nbsp; Free key: <strong style="color:rgba(255,255,255,.4)">sub.wyzie.io/redeem</strong>
   </div>
@@ -338,61 +414,64 @@
   <div id="wz-clear-row" style="display:none;margin-top:6px">
     <button style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);font-size:11px;padding:5px;border-radius:5px;cursor:pointer" onclick="doClearSub()">Disable loaded subtitle</button>
   </div>
+  </details>
+
+  <hr class="div" />
+
+  <details class="sub-sec" data-k="sk">
+    <summary class="sub-hd">Skip Intro &amp; Credits</summary>
+    <div style="font-size:10px;color:rgba(255,255,255,.25);margin-bottom:8px">
+      Free &nbsp;·&nbsp; no account or key needed &nbsp;·&nbsp; click the button or press <strong style="color:rgba(255,255,255,.4)">&#8997;S</strong>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:8px 10px;margin-bottom:8px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:#fff">Show skip button</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px">Never seeks on its own</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:10px;cursor:pointer">
+        <input type="checkbox" id="skip-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleSkip(this.checked)" />
+        <span id="skip-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
+          <span id="skip-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
+        </span>
+      </label>
+    </div>
+    <div id="skip-status" style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.45;min-height:0"></div>
+  </details>
+
 </div>
 
 <hr class="div" />
 
-<!-- ── Overlay settings (moved to bottom) ─────────── -->
+<!-- ── Overlay appearance ─────────────────────────── -->
 
-<!-- Overlay ON/OFF toggle -->
-<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
-  <div>
-    <div style="font-size:13px;font-weight:600;color:#fff">Show Overlay on Pause</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Displays episode info after pausing</div>
-  </div>
-  <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:12px;cursor:pointer">
-    <input type="checkbox" id="overlay-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleOverlay(this.checked)" />
-    <span id="toggle-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
-      <span id="toggle-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
-    </span>
-  </label>
-</div>
 
-<!-- Dismiss overlay (visible only when overlay is showing) -->
-<div id="ov-dismiss">
-  <button onclick="iina.postMessage('overlayCloseRequest',{})">✕  Dismiss overlay</button>
-</div>
 
-<!-- Overlay shade slider -->
+<!-- Overlay appearance — one box instead of three -->
 <div class="op-wrap">
   <div class="op-row">
-    <div class="sl" style="margin:0">Overlay Shade</div>
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Shade</div>
     <input type="range" id="opacity-slider" min="0" max="100" value="72" oninput="doSetOpacity(this.value)" />
     <span id="opacity-val">72%</span>
   </div>
-  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">0% = transparent · 100% = solid black</div>
-</div>
-
-<!-- Overlay vertical position slider -->
-<div class="op-wrap">
-  <div class="op-row">
-    <div class="sl" style="margin:0">Overlay Position</div>
+  <div class="op-row" style="margin-top:7px">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Position</div>
     <input type="range" id="vpos-slider" min="0" max="100" value="50" oninput="doSetVPos(this.value)" />
     <span id="vpos-val">Center</span>
   </div>
-  <div style="font-size:10px;color:rgba(255,255,255,.22);margin-top:5px">Top &nbsp;·&nbsp; Center &nbsp;·&nbsp; Bottom</div>
-</div>
-
-<!-- Pause delay -->
-<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:9px 12px;margin-bottom:12px">
-  <div>
-    <div style="font-size:13px;font-weight:600;color:#fff">Pause Delay</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px">Seconds to wait after pausing before the overlay appears</div>
+  <div class="op-row" style="margin-top:7px">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Theme</div>
+    <div id="theme-pills" style="display:flex;gap:4px;flex:1">
+      <button class="thm" data-t="classic" onclick="doSetTheme('classic')">Classic</button>
+      <button class="thm" data-t="compact" onclick="doSetTheme('compact')">Compact</button>
+      <button class="thm" data-t="poster"  onclick="doSetTheme('poster')">Poster</button>
+    </div>
   </div>
-  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px">
+  <div class="op-row" style="margin-top:7px">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Delay</div>
+    <div style="flex:1"></div>
     <input type="number" id="pause-delay-input" min="0.5" max="30" step="0.5" value="3"
       onchange="doSetPauseDelay(this.value)"
-      style="width:54px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:5px 8px;color:#fff;font-size:13px;font-family:inherit;outline:none;text-align:center" />
+      style="width:52px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:4px 6px;color:#fff;font-size:12px;font-family:inherit;outline:none;text-align:center" />
     <span style="font-size:11px;color:rgba(255,255,255,.45)">sec</span>
   </div>
 </div>
@@ -569,6 +648,7 @@ function setLoading(on) {
 async function doSearch() {
   var q = (document.getElementById("q").value || "").trim();
   if (!q) return;
+  pushSearch(q);
   setLoading(true);
   document.getElementById("panel").innerHTML =
     '<div class="msg"><span class="sp"></span>Searching…</div>';
@@ -734,6 +814,7 @@ function pickEp(idx) {
 function saveSelection(info) {
   try{localStorage.setItem("epinfo_ep", JSON.stringify(info));}catch(e){}
   saveCurrentUrlInfo(info); // remember per-URL
+  pushRecent(info);         // and to the recent picks list
   showSaved(info);
   iina.postMessage("episodeSelected", info);
   document.getElementById("panel").innerHTML =
@@ -952,6 +1033,209 @@ function doSetVPos(val) {
   iina.postMessage("setOverlayVerticalPos", { value: v });
 }
 
+
+// ── Overlay theme ─────────────────────────────
+function paintThemePills(t) {
+  var pills = document.querySelectorAll("#theme-pills .thm");
+  for (var i = 0; i < pills.length; i++) {
+    pills[i].className = "thm" + (pills[i].getAttribute("data-t") === t ? " on" : "");
+  }
+}
+function doSetTheme(t) {
+  try { localStorage.setItem("epinfo_overlay_theme", t); } catch(e) {}
+  paintThemePills(t);
+  iina.postMessage("setOverlayTheme", { value: t });
+}
+
+// ── Skip intro toggle ─────────────────────────
+function paintSkipToggle(on) {
+  var box = document.getElementById("skip-toggle");
+  var tr  = document.getElementById("skip-track");
+  var th  = document.getElementById("skip-thumb");
+  if (box) box.checked = on;
+  if (tr) tr.style.background = on ? "rgba(48,209,88,.85)" : "rgba(255,255,255,.2)";
+  if (th) th.style.left = on ? "21px" : "3px";
+}
+iina.onMessage("skipStatus", function(d) {
+  var el = document.getElementById("skip-status");
+  if (el) el.textContent = (d && d.text) || "";
+});
+
+function doToggleSkip(on) {
+  try { localStorage.setItem("epinfo_skip_enabled", on ? "true" : "false"); } catch(e) {}
+  paintSkipToggle(on);
+  iina.postMessage("setSkipEnabled", { enabled: on });
+}
+
+// ── Recent searches ───────────────────────────
+// Just the last few query strings, so getting from "episode 4" to "episode 5"
+// costs one click instead of retyping the show name.
+var SEARCHES_CAP = 5;
+
+function loadSearches() {
+  try { return JSON.parse(localStorage.getItem("epinfo_searches") || "[]"); }
+  catch(e) { return []; }
+}
+function pushSearch(q) {
+  q = String(q || "").trim();
+  if (!q) return;
+  var list = loadSearches().filter(function(x) {
+    return String(x).toLowerCase() !== q.toLowerCase();
+  });
+  list.unshift(q);
+  try { localStorage.setItem("epinfo_searches", JSON.stringify(list.slice(0, SEARCHES_CAP))); } catch(e) {}
+  renderSearches();
+}
+function runSearch(i) {
+  var q = loadSearches()[i];
+  if (!q) return;
+  var box = document.getElementById("q");
+  if (box) box.value = q;
+  doSearch();
+}
+function renderSearches() {
+  var sec  = document.getElementById("searches-sec");
+  var list = document.getElementById("searches-list");
+  if (!sec || !list) return;
+  var items = loadSearches();
+  if (!items.length) { sec.style.display = "none"; list.innerHTML = ""; return; }
+  sec.style.display = "block";
+  var html = "";
+  for (var i = 0; i < items.length; i++) {
+    html += '<button class="sq" onclick="runSearch(' + i + ')" title="Search again">' +
+            htmlEsc(items[i]) + '</button>';
+  }
+  list.innerHTML = html;
+}
+
+// ── Recent picks ──────────────────────────────
+// Stored as [{ info, lastUsed, pinned }]. Pinned entries never age out and
+// are not counted against the cap, or pinning would silently evict them.
+var RECENTS_CAP = 5;
+
+function loadRecents() {
+  try { return JSON.parse(localStorage.getItem("epinfo_recents") || "[]"); }
+  catch(e) { return []; }
+}
+function saveRecents(list) {
+  try { localStorage.setItem("epinfo_recents", JSON.stringify(list)); } catch(e) {}
+}
+function recentKey(info) {
+  if (!info) return "";
+  return info.isMovie
+    ? "m" + info.tmdbId
+    : "t" + info.tmdbId + "-" + (info.season || 0) + "-" + (info.episode || 0);
+}
+function pushRecent(info) {
+  if (!info || !info.tmdbId) return;
+  var list = loadRecents();
+  var key  = recentKey(info);
+  var hit  = null;
+  list = list.filter(function(r) {
+    if (recentKey(r.info) === key) { hit = r; return false; }
+    return true;
+  });
+  list.unshift({ info: info, lastUsed: Date.now(), pinned: hit ? hit.pinned : false });
+
+  var kept = [], unpinned = 0;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].pinned) { kept.push(list[i]); continue; }
+    if (unpinned < RECENTS_CAP) { kept.push(list[i]); unpinned++; }
+  }
+  saveRecents(kept);
+  renderRecents();
+}
+function applyRecent(idx) {
+  var list = sortedRecents();
+  var r = list[idx];
+  if (!r) return;
+  r.lastUsed = Date.now();
+  var all = loadRecents();
+  for (var i = 0; i < all.length; i++) {
+    if (recentKey(all[i].info) === recentKey(r.info)) all[i].lastUsed = r.lastUsed;
+  }
+  saveRecents(all);
+  // Same path a normal pick takes, so nothing new can go out of sync.
+  try { localStorage.setItem("epinfo_ep", JSON.stringify(r.info)); } catch(e) {}
+  saveCurrentUrlInfo(r.info);
+  showSaved(r.info);
+  iina.postMessage("episodeSelected", r.info);
+  renderRecents();
+}
+function togglePin(idx, ev) {
+  if (ev) ev.stopPropagation();
+  var r = sortedRecents()[idx];
+  if (!r) return;
+  var all = loadRecents();
+  for (var i = 0; i < all.length; i++) {
+    if (recentKey(all[i].info) === recentKey(r.info)) all[i].pinned = !all[i].pinned;
+  }
+  saveRecents(all);
+  renderRecents();
+}
+function removeRecent(idx, ev) {
+  if (ev) ev.stopPropagation();
+  var r = sortedRecents()[idx];
+  if (!r) return;
+  saveRecents(loadRecents().filter(function(x) {
+    return recentKey(x.info) !== recentKey(r.info);
+  }));
+  renderRecents();
+}
+function clearRecents() {
+  saveRecents([]);
+  renderRecents();
+}
+// Sorted AND capped: the cap has to apply here too, or a list saved under an
+// older, larger limit would keep rendering every entry.
+function sortedRecents() {
+  var sorted = loadRecents().sort(function(a, b) {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return (b.lastUsed || 0) - (a.lastUsed || 0);
+  });
+  var out = [], unpinned = 0;
+  for (var i = 0; i < sorted.length; i++) {
+    if (sorted[i].pinned) { out.push(sorted[i]); continue; }
+    if (unpinned < RECENTS_CAP) { out.push(sorted[i]); unpinned++; }
+  }
+  return out;
+}
+
+// Drop anything the cap has squeezed out, so storage does not keep growing
+// invisibly behind the list.
+function pruneRecents() {
+  var kept = sortedRecents();
+  if (kept.length !== loadRecents().length) saveRecents(kept);
+}
+function renderRecents() {
+  var sec  = document.getElementById("recents-sec");
+  var list = document.getElementById("recents-list");
+  if (!sec || !list) return;
+  var items = sortedRecents();
+  if (!items.length) { sec.style.display = "none"; list.innerHTML = ""; return; }
+  sec.style.display = "block";
+
+  var html = "";
+  for (var i = 0; i < items.length; i++) {
+    var info = items[i].info || {};
+    var sub  = info.isMovie
+      ? "Movie" + (info.airDate ? " · " + htmlEsc(String(info.airDate).slice(0, 4)) : "")
+      : (info.code ? htmlEsc(info.code) : "") + (info.epTitle ? " · " + htmlEsc(info.epTitle) : "");
+    var img  = info.posterUrl ? "background-image:url('" + htmlEsc(info.posterUrl) + "')" : "";
+    html += '<div class="rc" onclick="applyRecent(' + i + ')">' +
+              '<div class="rc-img" style="' + img + '"></div>' +
+              '<div class="rc-txt">' +
+                '<div class="rc-t">' + htmlEsc(info.showTitle || info.epTitle || "Untitled") + '</div>' +
+                '<div class="rc-s">' + sub + '</div>' +
+              '</div>' +
+              '<button class="rc-b' + (items[i].pinned ? ' pinned' : '') + '" title="Pin" ' +
+                'onclick="togglePin(' + i + ',event)">' + (items[i].pinned ? '\u2605' : '\u2606') + '</button>' +
+              '<button class="rc-b" title="Remove" onclick="removeRecent(' + i + ',event)">\u00D7</button>' +
+            '</div>';
+  }
+  list.innerHTML = html;
+}
+
 // ── Pause delay ───────────────────────────────
 (function(){
   var s = localStorage.getItem("epinfo_pause_delay");
@@ -962,6 +1246,20 @@ function doSetVPos(val) {
     var v = localStorage.getItem("epinfo_pause_delay");
     var n = v !== null ? parseFloat(v) : 3;
     if (!isNaN(n)) iina.postMessage("setPauseDelay", { value: n });
+
+    // Overlay theme
+    var th = localStorage.getItem("epinfo_overlay_theme") || "classic";
+    paintThemePills(th);
+    iina.postMessage("setOverlayTheme", { value: th });
+
+    // Skip intro — opt-in, so default off
+    var sk = localStorage.getItem("epinfo_skip_enabled") === "true";
+    paintSkipToggle(sk);
+    iina.postMessage("setSkipEnabled", { enabled: sk });
+
+    renderSearches();
+    pruneRecents();
+    renderRecents();
 
     // All settings have been pushed — tell main.js it's safe to re-emit
     // fileChanged so we can do the per-URL TMDB restore.
@@ -1644,6 +1942,19 @@ iina.onMessage("subDownloadResult", function(d) {
 });
 function doOsNone() { osLoadedIdx = -1; osPendingIdx = null; iina.postMessage("clearSub", {}); renderOs(); }
 
+</script>
+<script>
+// Collapsible subtitle sources — remember each one's state across launches.
+(function () {
+  document.querySelectorAll("details.sub-sec").forEach(function (d) {
+    var key = "epinfo_open_" + d.getAttribute("data-k");
+    var saved = localStorage.getItem(key);
+    if (saved !== null) d.open = saved === "1";
+    d.addEventListener("toggle", function () {
+      try { localStorage.setItem(key, d.open ? "1" : "0"); } catch (e) {}
+    });
+  });
+})();
 </script>
 </body>
 </html>

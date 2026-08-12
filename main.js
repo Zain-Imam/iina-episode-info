@@ -1,8 +1,8 @@
 // ============================================================
-// IINA Plugin: Episode Info
+// IINA Plugin: Episode Info  v1.3.0
 // ============================================================
 
-const { core, event, overlay, sidebar, utils, file } = iina;
+const { core, event, overlay, sidebar, utils, file, menu } = iina;
 
 // ── Helpers ──────────────────────────────────
 // Convert any thrown value / API error payload into a readable string.
@@ -45,7 +45,7 @@ var HTTP_TIMEOUT_MS = 10000; // Per-call budget — sidebar enforces total budge
 // which causes timeouts for fresh content even when the result exists.
 // Per OS team forum post: "we now require to have User-Agent present in
 // requests, set it up to your application/script name with version".
-var OS_USER_AGENT = "EpisodeInfo v1.2.1";
+var OS_USER_AGENT = "EpisodeInfo v1.3.0";
 
 // ── Lazy IMDB ID resolver ───────────────────────────
 // Resolves BOTH the show-level (parent) and episode-level IMDB ids from TMDB.
@@ -135,6 +135,13 @@ var overlayBgOpacity   = 0.72;
 var overlayEnabled     = true;   // toggled from sidebar, persisted in sidebar's localStorage
 var overlayVerticalPos = 50;     // 0=top, 50=center, 100=bottom
 var pauseDelay         = 3;      // seconds before overlay shows on pause
+var overlayTheme       = "classic"; // classic | compact | poster
+var skipEnabled        = false;  // opt-in: skip intro/recap/credits
+var cardVisible        = false;  // info card showing?
+var skipVisible        = false;  // skip pill showing?
+var segments           = [];     // resolved skip segments for this file
+var activeSegment      = null;   // the one the pill is currently offering
+var timeWatcher        = null;   // id of the mpv.time-pos observer
 var currentVideoUrl    = "";     // url of currently loaded file, sent to sidebar so it can
                                  // restore per-URL TMDB info on re-play
 
@@ -154,9 +161,11 @@ function showOverlay(d) {
     overview:    d.overview   || "",
     posterUrl:   d.posterUrl  || "",
     bgOpacity:   overlayBgOpacity,
-    verticalPos: overlayVerticalPos
+    verticalPos: overlayVerticalPos,
+    theme:       overlayTheme
   });
   overlay.show();
+  cardVisible = true;
   overlayVisible = true;
   sidebar.postMessage("overlayShowing", { visible: true });
   log("Showing: " + d.epTitle);
@@ -164,9 +173,359 @@ function showOverlay(d) {
 
 function hideOverlay() {
   if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null; }
-  overlay.hide();
+  cardVisible = false;
   overlayVisible = false;
+  overlay.postMessage("hideCard", {});
+  syncOverlay();
   sidebar.postMessage("overlayShowing", { visible: false });
+}
+
+// The overlay WebView is shared by the info card and the skip pill.
+// Hide it only when neither of them wants to be on screen.
+function syncOverlay() {
+  if (cardVisible || skipVisible) overlay.show();
+  else overlay.hide();
+}
+
+
+// ── Skip intro / recap / credits ──────────────────────────────
+// Two sources, cheapest first:
+//   1. Chapters embedded in the file — local, instant, always right.
+//   2. Three crowdsourced databases, all keyless, queried in parallel.
+// Nothing ever seeks on its own; we only offer a button.
+
+var SEGMENT_LABELS = {
+  intro:   "Skip Intro",
+  recap:   "Skip Recap",
+  outro:   "Skip Credits",
+  credits: "Skip Credits",
+  preview: "Skip Preview"
+};
+
+// Crowdsourced data contains reversed and zero-length ranges.
+function validSegment(seg) {
+  return seg && isFinite(seg.start) && isFinite(seg.end) &&
+         seg.end > seg.start && seg.end - seg.start >= 3;
+}
+
+function pushSegment(list, kind, start, end, source, opts) {
+  var seg = {
+    kind: kind, start: Number(start), end: Number(end), source: source,
+    // A value derived from a null ("from the beginning" / "to the end") is a
+    // placeholder, not a measurement, and must not win the estimate.
+    preciseStart: !(opts && opts.vagueStart),
+    preciseEnd:   !(opts && opts.vagueEnd)
+  };
+  if (validSegment(seg)) list.push(seg);
+}
+
+// 1. Chapters — no network, no coverage problem.
+// Chapter has `start` but no `end`: a chapter ends where the next one begins.
+function segmentsFromChapters() {
+  var out = [];
+  try {
+    var chapters = core.getChapters() || [];
+    if (chapters.length < 2) return out;
+    var duration = 0;
+    try { duration = iina.mpv.getNumber("duration") || 0; } catch(e) {}
+
+    for (var i = 0; i < chapters.length; i++) {
+      var title = String(chapters[i].title || "").trim();
+      var end   = (i + 1 < chapters.length) ? chapters[i + 1].start : duration;
+      if (!end) continue;
+      if (/^(op|opening|intro|avant|titles?|opening credits)$/i.test(title)) {
+        pushSegment(out, "intro", chapters[i].start, end, "chapters");
+      } else if (/^(recap|previously)/i.test(title)) {
+        pushSegment(out, "recap", chapters[i].start, end, "chapters");
+      } else if (/^(ed|ending|outro|credits|end credits)$/i.test(title)) {
+        pushSegment(out, "outro", chapters[i].start, end, "chapters");
+      }
+    }
+  } catch(e) {}
+  return out;
+}
+
+// 2. The three databases. All key on IMDB id + season + episode, which
+//    resolveImdbIds() has already produced for us.
+async function segmentsFromApis(imdbId, season, episode) {
+  var out = [];
+  if (!imdbId) return out;
+
+  var qs = "imdb_id=" + encodeURIComponent(imdbId);
+  if (season)  qs += "&season=" + encodeURIComponent(season);
+  if (episode) qs += "&episode=" + encodeURIComponent(episode);
+
+  async function grab(label, url, parse) {
+    try {
+      var r = await withTimeout(
+        iina.http.get(url, { headers: { "Accept": "application/json" } }),
+        HTTP_TIMEOUT_MS, label
+      );
+      if (r.statusCode !== 200) return;
+      var body = r.data || JSON.parse(r.text || "{}");
+      parse(body);
+    } catch(e) { /* one dead provider must not break the others */ }
+  }
+
+  await Promise.all([
+    // IntroDB — /segments returns every type; /intro is intros-only.
+    grab("IntroDB", "https://api.introdb.app/segments?" + qs, function(b) {
+      ["intro", "recap", "outro"].forEach(function(k) {
+        if (b[k]) pushSegment(out, k, b[k].start_sec, b[k].end_sec, "introdb");
+      });
+    }),
+    // TheIntroDB — arrays, and start_ms/end_ms may be null meaning
+    // "from the beginning" / "to the end of the file".
+    grab("TheIntroDB", "https://api.theintrodb.org/v2/media?" + qs, function(b) {
+      var dur = 0;
+      try { dur = iina.mpv.getNumber("duration") || 0; } catch(e) {}
+      [["intro", "intro"], ["credits", "outro"]].forEach(function(pair) {
+        var arr = b[pair[0]];
+        if (!Array.isArray(arr)) return;
+        arr.forEach(function(x) {
+          var vagueStart = (x.start_ms === null || x.start_ms === undefined);
+          var vagueEnd   = (x.end_ms   === null || x.end_ms   === undefined);
+          var st = vagueStart ? 0   : x.start_ms / 1000;
+          var en = vagueEnd   ? dur : x.end_ms   / 1000;
+          pushSegment(out, pair[1], st, en, "theintrodb",
+                      { vagueStart: vagueStart, vagueEnd: vagueEnd });
+        });
+      });
+    }),
+    // SkipDB — 200 with null members when it has nothing.
+    grab("SkipDB", "https://api.skipdb.tv/api/segments?" + qs, function(b) {
+      var segs = b.segments || {};
+      ["intro", "recap", "outro", "preview"].forEach(function(k) {
+        var x = segs[k];
+        if (!x) return;
+        if (typeof x.confidence === "number" && x.confidence < 0.5) return;
+        pushSegment(out, k, x.start_ms / 1000, x.end_ms / 1000, "skipdb");
+      });
+    })
+  ]);
+
+  return out;
+}
+
+// Merge the providers' answers into one segment per kind.
+//
+// Confidence scores are NOT compared across services: IntroDB reports
+// confidence 1 for a single submission, SkipDB reports 0.9 for a verified
+// match, and those numbers do not mean the same thing. Agreement between
+// independent databases is the stronger signal, so segments that describe
+// the same stretch of video are grouped and the best-supported group wins.
+var SOURCE_ORDER = { chapters: 0, introdb: 1, theintrodb: 2, skipdb: 3 };
+
+// Overlap as a fraction of the shorter segment: 1 = identical, 0 = disjoint.
+function overlapRatio(a, b) {
+  var lo = Math.max(a.start, b.start);
+  var hi = Math.min(a.end, b.end);
+  var ov = hi - lo;
+  if (ov <= 0) return 0;
+  var shortest = Math.min(a.end - a.start, b.end - b.start);
+  return shortest > 0 ? ov / shortest : 0;
+}
+
+function median(nums) {
+  var a = nums.slice().sort(function(x, y) { return x - y; });
+  var m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function distinctSources(group) {
+  var seen = {};
+  group.forEach(function(s) { seen[s.source] = 1; });
+  return Object.keys(seen);
+}
+
+function bestRank(group) {
+  return Math.min.apply(null, group.map(function(s) {
+    var r = SOURCE_ORDER[s.source];
+    return r === undefined ? 99 : r;
+  }));
+}
+
+function mergeSegments(list) {
+  var byKind = {};
+  list.forEach(function(seg) {
+    (byKind[seg.kind] = byKind[seg.kind] || []).push(seg);
+  });
+
+  return Object.keys(byKind).map(function(kind) {
+    var segs = byKind[kind];
+
+    // Cluster segments that describe the same stretch of video.
+    var groups = [];
+    segs.forEach(function(seg) {
+      for (var i = 0; i < groups.length; i++) {
+        for (var j = 0; j < groups[i].length; j++) {
+          if (overlapRatio(groups[i][j], seg) > 0.5) { groups[i].push(seg); return; }
+        }
+      }
+      groups.push([seg]);
+    });
+
+    // Most corroborated group wins; ties go to the more reliable source.
+    groups.sort(function(a, b) {
+      var d = distinctSources(b).length - distinctSources(a).length;
+      if (d !== 0) return d;
+      return bestRank(a) - bestRank(b);
+    });
+    var win = groups[0];
+
+    // Estimate from measured values only, falling back to placeholders if
+    // that is genuinely all we have.
+    var starts = win.filter(function(s) { return s.preciseStart; }).map(function(s) { return s.start; });
+    var ends   = win.filter(function(s) { return s.preciseEnd;   }).map(function(s) { return s.end;   });
+    if (!starts.length) starts = win.map(function(s) { return s.start; });
+    if (!ends.length)   ends   = win.map(function(s) { return s.end;   });
+
+    return {
+      kind:    kind,
+      // Earliest start, so the button is up before the intro rolls.
+      start:   Math.min.apply(null, starts),
+      // Median end: overshooting skips real content, so this is the number
+      // that has to be right, and the median resists one bad outlier.
+      end:     median(ends),
+      sources: distinctSources(win),
+      agreed:  distinctSources(win).length
+    };
+  }).filter(validSegment);
+}
+
+async function resolveSegments(info) {
+  segments = [];
+  activeSegment = null;
+  hideSkip();
+  if (!skipEnabled || !info) return;
+
+  sidebar.postMessage("skipStatus", { text: "Checking for an intro\u2026" });
+
+  var local = segmentsFromChapters();
+  if (local.length) {
+    segments = mergeSegments(local);
+    startTimeWatcher();
+    sidebar.postMessage("skipStatus", { text: describeSegments(segments) });
+    return;
+  }
+
+  var imdb = info.isMovie ? info.imdbId : (info.parentImdbId || info.imdbId);
+  imdb = withTtPrefix(imdb);
+  if (!imdb) return;
+
+  var remote = await segmentsFromApis(imdb, info.season, info.episode);
+  segments = mergeSegments(remote);
+  if (segments.length) {
+    startTimeWatcher();
+    sidebar.postMessage("skipStatus", { text: describeSegments(segments) });
+  } else {
+    sidebar.postMessage("skipStatus", { text: "Nothing found for this episode." });
+  }
+}
+
+var SOURCE_NAMES = {
+  chapters:   "chapters",
+  introdb:    "IntroDB",
+  theintrodb: "TheIntroDB",
+  skipdb:     "SkipDB"
+};
+
+function fmtTime(sec) {
+  var m = Math.floor(sec / 60), ss = Math.floor(sec % 60);
+  return m + ":" + (ss < 10 ? "0" : "") + ss;
+}
+
+function describeSegments(list) {
+  var parts = list.map(function(seg) {
+    var name = (SEGMENT_LABELS[seg.kind] || "Skip").replace("Skip ", "");
+    return name + " " + fmtTime(seg.start) + "–" + fmtTime(seg.end);
+  });
+  return "Found: " + parts.join(" · ");
+}
+
+function showSkip(seg) {
+  activeSegment = seg;
+  skipVisible = true;
+  overlay.postMessage("showSkip", { label: SEGMENT_LABELS[seg.kind] || "Skip" });
+  syncOverlay();
+  // Only while the pill is up, so click-to-pause keeps working otherwise.
+  // The button also needs a `data-clickable` attribute — see overlay.html.
+  try { overlay.setClickable(true); } catch(e) { log("setClickable(true) failed: " + errStr(e)); }
+}
+
+// Perform the skip. Reachable from the overlay button, the Plugins menu and
+// Alt+S, so the feature never depends on a single mechanism.
+function skipNow(via) {
+  if (!activeSegment) {
+    sidebar.postMessage("skipStatus", { text: "Nothing to skip at this point." });
+    return;
+  }
+  var target = activeSegment.end;
+  var kind   = activeSegment.kind;
+  hideSkip();
+
+  var how = "";
+  try {
+    core.seekTo(target);
+    how = "core.seekTo";
+  } catch(e1) {
+    try {
+      iina.mpv.command("seek", [String(target), "absolute", "exact"]);
+      how = "mpv seek absolute";
+    } catch(e2) {
+      try {
+        iina.mpv.set("time-pos", target);
+        how = "mpv time-pos";
+      } catch(e3) {
+        iina.console.log("[EpInfo] seek failed: " + errStr(e1) + " / " + errStr(e2) + " / " + errStr(e3));
+        sidebar.postMessage("skipStatus", { text: "Couldn't jump — try pressing \u2325S instead." });
+        return;
+      }
+    }
+  }
+
+  var what = { intro: "intro", recap: "recap", outro: "credits",
+               credits: "credits", preview: "preview" }[kind] || kind;
+  iina.console.log("[EpInfo] skipped " + kind + " to " + target + "s via " + how + " (" + via + ")");
+  sidebar.postMessage("skipStatus", { text: "Skipped the " + what + " — jumped to " + fmtTime(target) + "." });
+}
+
+function hideSkip() {
+  if (!skipVisible) return;
+  activeSegment = null;
+  skipVisible = false;
+  overlay.postMessage("hideSkip", {});
+  try { overlay.setClickable(false); } catch(e) { log("setClickable(false) failed: " + errStr(e)); }
+  syncOverlay();
+}
+
+// Driven by the mpv property rather than a timer: a wall-clock timer keeps
+// running while paused and is wrong after any seek. The handler stays trivial
+// because it fires often.
+function startTimeWatcher() {
+  if (timeWatcher) return;
+  timeWatcher = event.on("mpv.time-pos.changed", function() {
+    if (!skipEnabled || !segments.length) return;
+    var t;
+    try { t = iina.mpv.getNumber("time-pos"); } catch(e) { return; }
+    if (!isFinite(t)) return;
+
+    var hit = null;
+    for (var i = 0; i < segments.length; i++) {
+      if (t >= segments[i].start && t < segments[i].end) { hit = segments[i]; break; }
+    }
+    if (hit) {
+      if (activeSegment !== hit) showSkip(hit);
+    } else if (skipVisible) {
+      hideSkip();
+    }
+  });
+}
+
+function stopTimeWatcher() {
+  if (!timeWatcher) return;
+  try { event.off("mpv.time-pos.changed", timeWatcher); } catch(e) {}
+  timeWatcher = null;
 }
 
 // ── Sidebar handlers ──────────────────────────────────────────
@@ -175,10 +534,13 @@ function registerSidebarHandlers() {
   sidebar.onMessage("episodeSelected", function(info) {
     log("episodeSelected: " + (info ? info.epTitle : "null"));
     currentEpisode = info;
+    resolveSegments(info);
   });
 
   sidebar.onMessage("clearEpisode", function() {
     currentEpisode = null;
+    segments = [];
+    hideSkip();
     hideOverlay();
   });
 
@@ -214,6 +576,26 @@ function registerSidebarHandlers() {
   sidebar.onMessage("setPauseDelay", function(d) {
     var v = parseFloat(d.value);
     if (!isNaN(v) && v >= 0.5) pauseDelay = v;
+  });
+
+  // Overlay theme: classic | compact | poster
+  sidebar.onMessage("setOverlayTheme", function(d) {
+    overlayTheme = d && d.value ? String(d.value) : "classic";
+    overlay.postMessage("setTheme", { value: overlayTheme });
+  });
+
+  // Skip intro/recap/credits toggle
+  sidebar.onMessage("setSkipEnabled", function(d) {
+    skipEnabled = !!(d && d.enabled);
+    if (!skipEnabled) {
+      segments = [];
+      hideSkip();
+      stopTimeWatcher();
+      sidebar.postMessage("skipStatus", { text: "" });
+    } else if (currentEpisode) {
+      resolveSegments(currentEpisode);
+    }
+    log("Skip segments " + (skipEnabled ? "enabled" : "disabled"));
   });
 
   // Sidebar finished its init and is ready to receive messages.
@@ -865,16 +1247,38 @@ function setupSidebar() {
   }
 }
 
+var overlayHandlersRegistered = false;
+function registerOverlayHandlers() {
+  if (overlayHandlersRegistered) return;   // never stack duplicates
+  overlayHandlersRegistered = true;
+  overlay.onMessage("closeOverlay", function() { hideOverlay(); });
+  overlay.onMessage("skipSegment", function() { skipNow("button"); });
+}
+
+// A trigger that does not involve the overlay web view at all.
+try {
+  menu.addItem(menu.item("Skip Intro / Recap / Credits", function() {
+    skipNow("menu");
+  }, { keyBinding: "Alt+s" }));
+} catch(e) {
+  iina.console.log("[EpInfo] menu item failed: " + errStr(e));
+}
+
 // ── Events ────────────────────────────────────────────────────
 event.on("iina.window-loaded", function() {
   overlay.loadFile("overlay.html");
-  overlay.onMessage("closeOverlay", function() { hideOverlay(); });
+  // Handlers registered straight after loadFile do not survive the page
+  // load; the sidebar uses the same delay for the same reason.
+  setTimeout(registerOverlayHandlers, 500);
   setupSidebar();
 });
 
 event.on("iina.file-loaded", function() {
   setupSidebar();
   currentEpisode = null;
+  segments = [];
+  hideSkip();
+  stopTimeWatcher();
   hideOverlay();
   // Capture URL so sidebar can look it up in its URL→episode map
   try { currentVideoUrl = core.status.url || ""; } catch(e) { currentVideoUrl = ""; }
