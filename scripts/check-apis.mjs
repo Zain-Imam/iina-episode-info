@@ -327,14 +327,10 @@ async function checkAllowlistedHostsLive() {
 }
 
 
-// 6. Skip-intro sources. All keyless, and the plugin treats each as optional:
-//    it queries all three and uses whatever answers. So this fails only when a
-//    source is genuinely broken, or when none of them are usable.
-//
-//    401/403/429 is not a break. These sit behind Cloudflare, which challenges
-//    datacenter IPs, so a GitHub runner can be blocked while every real user on
-//    a home connection is served normally. Verified: TheIntroDB returns 403 to
-//    Actions and 200 from a residential address at the same moment.
+// 6. Skip-intro sources. Each is optional, so this fails only when one is
+//    genuinely broken or none are usable. 401/403/429 means this runner is
+//    blocked — these sit behind Cloudflare, which challenges datacenter IPs
+//    while serving real users normally.
 async function checkSkipSources() {
   const qs = `imdb_id=${TV.imdb}&season=1&episode=1`;
 
@@ -376,6 +372,42 @@ async function checkSkipSources() {
   return { detail: `all ${ok.length} sources answering with the expected shape` };
 }
 
+// 7. Anime chain: IMDB -> MyAnimeList via ARM, then AniSkip. An outage here
+//    degrades anime lookups only, so blocked or unreachable warns rather
+//    than fails; a changed contract still fails.
+async function checkAnimeChain() {
+  const ANIME = { imdb: "tt2560140", name: "Attack on Titan", mal: 16498 };
+  const soft = [], hard = [];
+
+  let mal = null;
+  try {
+    const arm = await get(`https://arm.haglund.dev/api/v2/imdb?id=${ANIME.imdb}&include=myanimelist`);
+    if ([401, 403, 429].includes(arm.status)) soft.push(`ARM HTTP ${arm.status}`);
+    else if (arm.status !== 200) hard.push(`ARM HTTP ${arm.status}`);
+    else if (!Array.isArray(arm.json)) hard.push("ARM no longer returns an array");
+    else {
+      mal = (arm.json[0] || {}).myanimelist;
+      if (!mal) hard.push(`ARM stopped mapping ${ANIME.name} to a MyAnimeList id`);
+    }
+  } catch (err) {
+    soft.push(`ARM unreachable (${err.message})`);
+  }
+
+  try {
+    const r = await get(`https://api.aniskip.com/v2/skip-times/${mal || ANIME.mal}/1?types[]=op&types[]=ed&episodeLength=0`);
+    if ([401, 403, 429].includes(r.status)) soft.push(`AniSkip HTTP ${r.status}`);
+    else if (r.status !== 200) hard.push(`AniSkip HTTP ${r.status}`);
+    else if (!r.json || typeof r.json.found !== "boolean") hard.push("AniSkip response lost its `found` flag");
+    else if (r.json.found && !Array.isArray(r.json.results)) hard.push("AniSkip `results` is no longer an array");
+  } catch (err) {
+    soft.push(`AniSkip unreachable (${err.message})`);
+  }
+
+  need(hard.length === 0, hard.join("; "));
+  if (soft.length) return { warn: `${soft.join(", ")} — anime lookups unavailable from this runner` };
+  return { detail: `ARM maps ${ANIME.name} to MAL ${mal}, AniSkip answering` };
+}
+
 // Run everything, then write the summary.
 const fromDotEnv = loadDotEnv();
 
@@ -403,6 +435,7 @@ await check("SubDL — download host", checkSubdlCdn);
 await check("Wyzie — search endpoint", checkWyzie);
 await check("Wyzie — host still answers directly", checkWyzieHost);
 await check("Skip-intro sources (IntroDB/TheIntroDB/SkipDB)", checkSkipSources);
+await check("Anime chain (ARM \u2192 AniSkip)", checkAnimeChain);
 await check("All allow-listed hosts reachable", checkAllowlistedHostsLive);
 
 const failed = results.filter((r) => r.status === "fail");
