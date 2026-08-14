@@ -435,7 +435,9 @@
         </span>
       </label>
     </div>
-    <div id="skip-status" style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.45;min-height:0"></div>
+    <button id="skip-refresh" onclick="doRefreshSkip()"
+      style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.75);font-size:11px;font-weight:600;padding:6px;border-radius:6px;cursor:pointer;font-family:inherit">Search again</button>
+    <div id="skip-status" style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.45;margin-top:5px;display:none"></div>
   </details>
 
 </div>
@@ -963,6 +965,7 @@ function doSaveKey() {
     .then(function(d){
       if (d.images) {
         localStorage.setItem("epinfo_tmdb_key", key);
+        iina.postMessage("setTmdbKey", { key: key });
         TK = key;
         msg.style.color="#30d158"; msg.textContent="✓ Valid key saved!";
         setTimeout(showApiOk, 700);
@@ -972,6 +975,7 @@ function doSaveKey() {
     })
     .catch(function(){
       localStorage.setItem("epinfo_tmdb_key", key);
+      iina.postMessage("setTmdbKey", { key: key });
       TK = key;
       msg.style.color="#ff9f0a"; msg.textContent="⚠ Saved (couldn’t verify — no network)";
       setTimeout(showApiOk, 1200);
@@ -1056,10 +1060,40 @@ function paintSkipToggle(on) {
   if (tr) tr.style.background = on ? "rgba(48,209,88,.85)" : "rgba(255,255,255,.2)";
   if (th) th.style.left = on ? "21px" : "3px";
 }
-iina.onMessage("skipStatus", function(d) {
+var skipMsgTimer = null;
+function showSkipMsg(text) {
   var el = document.getElementById("skip-status");
-  if (el) el.textContent = (d && d.text) || "";
+  if (!el) return;
+  if (skipMsgTimer) { clearTimeout(skipMsgTimer); skipMsgTimer = null; }
+  if (!text) { el.style.display = "none"; el.textContent = ""; return; }
+  el.textContent = text;
+  el.style.display = "block";
+  // Transient on purpose: a permanent read-out of internals looks unfinished.
+  skipMsgTimer = setTimeout(function() {
+    el.style.display = "none";
+    el.textContent = "";
+  }, 6000);
+}
+
+function doRefreshSkip() {
+  var btn = document.getElementById("skip-refresh");
+  if (btn) { btn.disabled = true; btn.textContent = "Searching\u2026"; }
+  showSkipMsg("");
+  skipUserAsked = true;
+  iina.postMessage("refreshSkip", {});
+}
+
+iina.onMessage("skipResult", function(d) {
+  var btn = document.getElementById("skip-refresh");
+  if (btn) { btn.disabled = false; btn.textContent = "Search again"; }
+  if (!d) return;
+  // Only speak up when the user asked; a silent success needs no commentary.
+  if (skipUserAsked) {
+    showSkipMsg(d.count ? d.label : "Nothing found for this episode.");
+    skipUserAsked = false;
+  }
 });
+var skipUserAsked = false;
 
 function doToggleSkip(on) {
   try { localStorage.setItem("epinfo_skip_enabled", on ? "true" : "false"); } catch(e) {}
@@ -1246,6 +1280,10 @@ function renderRecents() {
     var v = localStorage.getItem("epinfo_pause_delay");
     var n = v !== null ? parseFloat(v) : 3;
     if (!isNaN(n)) iina.postMessage("setPauseDelay", { value: n });
+
+    // TMDB key — main.js needs it to resolve the IMDB id that the skip
+    // databases are keyed on.
+    iina.postMessage("setTmdbKey", { key: localStorage.getItem("epinfo_tmdb_key") || "" });
 
     // Overlay theme
     var th = localStorage.getItem("epinfo_overlay_theme") || "classic";
