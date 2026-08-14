@@ -1,5 +1,5 @@
 // ============================================================
-// IINA Plugin: Episode Info  v1.3.0
+// IINA Plugin: Episode Info  v1.3.1
 // ============================================================
 
 const { core, event, overlay, sidebar, utils, file, menu } = iina;
@@ -45,7 +45,7 @@ var HTTP_TIMEOUT_MS = 10000; // Per-call budget — sidebar enforces total budge
 // which causes timeouts for fresh content even when the result exists.
 // Per OS team forum post: "we now require to have User-Agent present in
 // requests, set it up to your application/script name with version".
-var OS_USER_AGENT = "EpisodeInfo v1.3.0";
+var OS_USER_AGENT = "EpisodeInfo v1.3.1";
 
 // ── Lazy IMDB ID resolver ───────────────────────────
 // Resolves BOTH the show-level (parent) and episode-level IMDB ids from TMDB.
@@ -119,6 +119,17 @@ function stripTtAndZeros(s) {
   return n || null;
 }
 
+// The canonical IMDB id, leading zeros intact. OpenSubtitles wants them
+// stripped and Wyzie wants the prefix without them, but the skip databases
+// key on the real id: tt0773262 returns Dexter's intro, tt773262 returns
+// nothing at all.
+function canonicalImdb(s) {
+  if (!s) return null;
+  var t = String(s).trim();
+  if (!t) return null;
+  return /^tt/i.test(t) ? t : ("tt" + t);
+}
+
 // Plain "tt" prefix preserve (for Wyzie). Strips leading zeros from the
 // numeric part but keeps the prefix.
 function withTtPrefix(s) {
@@ -142,6 +153,8 @@ var skipVisible        = false;  // skip pill showing?
 var segments           = [];     // resolved skip segments for this file
 var activeSegment      = null;   // the one the pill is currently offering
 var timeWatcher        = null;   // id of the mpv.time-pos observer
+var tmdbKey            = "";     // pushed from the sidebar; needed to resolve IMDB ids
+var segmentCache       = {};     // "imdb:season:episode" -> segments
 var currentVideoUrl    = "";     // url of currently loaded file, sent to sidebar so it can
                                  // restore per-URL TMDB info on re-play
 
@@ -189,9 +202,7 @@ function syncOverlay() {
 
 
 // ── Skip intro / recap / credits ──────────────────────────────
-// Two sources, cheapest first:
-//   1. Chapters embedded in the file — local, instant, always right.
-//   2. Three crowdsourced databases, all keyless, queried in parallel.
+// Chapters in the file first, then the keyless databases in parallel.
 // Nothing ever seeks on its own; we only offer a button.
 
 var SEGMENT_LABELS = {
@@ -307,13 +318,50 @@ async function segmentsFromApis(imdbId, season, episode) {
   return out;
 }
 
-// Merge the providers' answers into one segment per kind.
-//
-// Confidence scores are NOT compared across services: IntroDB reports
-// confidence 1 for a single submission, SkipDB reports 0.9 for a verified
-// match, and those numbers do not mean the same thing. Agreement between
-// independent databases is the stronger signal, so segments that describe
-// the same stretch of video are grouped and the best-supported group wins.
+
+// AniSkip is keyed on MyAnimeList ids, so the IMDB id goes through ARM first.
+// ARM returns one entry per season, and an empty array for non-anime.
+async function malIdFor(imdbTt, season) {
+  try {
+    var r = await withTimeout(
+      iina.http.get("https://arm.haglund.dev/api/v2/imdb", {
+        params: { id: imdbTt, include: "myanimelist" },
+        headers: { "Accept": "application/json" }
+      }), HTTP_TIMEOUT_MS, "ARM lookup");
+    if (r.statusCode !== 200) return null;
+    var arr = r.data || JSON.parse(r.text || "[]");
+    if (!Array.isArray(arr) || !arr.length) return null;      // not anime
+    var e = arr[(Number(season) || 1) - 1] || arr[0];
+    return e && e.myanimelist ? String(e.myanimelist) : null;
+  } catch(e) { return null; }
+}
+
+async function segmentsFromAniSkip(malId, episode) {
+  var out = [];
+  try {
+    var url = "https://api.aniskip.com/v2/skip-times/" + encodeURIComponent(malId) +
+              "/" + encodeURIComponent(episode || 1) +
+              "?types[]=op&types[]=ed&types[]=recap&episodeLength=0";
+    var r = await withTimeout(
+      iina.http.get(url, { headers: { "Accept": "application/json" } }),
+      HTTP_TIMEOUT_MS, "AniSkip");
+    if (r.statusCode !== 200) return out;
+    var body = r.data || JSON.parse(r.text || "{}");
+    if (!body.found || !Array.isArray(body.results)) return out;
+    body.results.forEach(function(x) {
+      var kind = { op: "intro", "mixed-op": "intro",
+                   ed: "outro", "mixed-ed": "outro",
+                   recap: "recap" }[String(x.skipType).toLowerCase()];
+      if (!kind || !x.interval) return;
+      pushSegment(out, kind, x.interval.startTime, x.interval.endTime, "aniskip");
+    });
+  } catch(e) {}
+  return out;
+}
+
+// Merge the providers' answers into one segment per kind. Confidence scores
+// are not comparable across services, so segments covering the same stretch
+// are grouped and the group backed by the most databases wins.
 var SOURCE_ORDER = { chapters: 0, introdb: 1, theintrodb: 2, skipdb: 3 };
 
 // Overlap as a fraction of the shorter segment: 1 = identical, 0 = disjoint.
@@ -393,34 +441,68 @@ function mergeSegments(list) {
   }).filter(validSegment);
 }
 
-async function resolveSegments(info) {
+async function resolveSegments(info, forceRefresh) {
   segments = [];
   activeSegment = null;
   hideSkip();
   if (!skipEnabled || !info) return;
 
-  sidebar.postMessage("skipStatus", { text: "Checking for an intro\u2026" });
-
   var local = segmentsFromChapters();
   if (local.length) {
     segments = mergeSegments(local);
     startTimeWatcher();
-    sidebar.postMessage("skipStatus", { text: describeSegments(segments) });
+    reportSkip(info, segments);
     return;
   }
 
-  var imdb = info.isMovie ? info.imdbId : (info.parentImdbId || info.imdbId);
-  imdb = withTtPrefix(imdb);
-  if (!imdb) return;
+  // Keyed on the SHOW's IMDB id. The episode-level id the subtitle search
+  // caches must never be used here — it returns nothing.
+  function showLevelId() {
+    return canonicalImdb(info.isMovie ? info.imdbId : info.parentImdbId);
+  }
+  var imdb = showLevelId();
+  if (!imdb && tmdbKey && info.tmdbId) {
+    await resolveImdbIds(info, tmdbKey);
+    imdb = showLevelId();
+  }
+  if (!imdb) { reportSkip(info, []); return; }
+
+  var cacheKey = imdb + ":" + (info.season || 0) + ":" + (info.episode || 0);
+  if (segmentCache[cacheKey] && !forceRefresh) {
+    segments = segmentCache[cacheKey];
+    if (segments.length) startTimeWatcher();
+    reportSkip(info, segments);
+    return;
+  }
+
+  // Anime first when it applies: AniSkip has native anime ids and is more
+  // precise than the crowdsourced TV databases for openings and endings.
+  var mal = await malIdFor(imdb, info.season);
+  var anime = mal ? await segmentsFromAniSkip(mal, info.episode) : [];
 
   var remote = await segmentsFromApis(imdb, info.season, info.episode);
-  segments = mergeSegments(remote);
-  if (segments.length) {
-    startTimeWatcher();
-    sidebar.postMessage("skipStatus", { text: describeSegments(segments) });
-  } else {
-    sidebar.postMessage("skipStatus", { text: "Nothing found for this episode." });
+  var merged = mergeSegments(remote);
+
+  // A kind found by AniSkip wins; anything it did not cover falls back to the
+  // consensus answer from the TV databases.
+  if (anime.length) {
+    var byKind = {};
+    mergeSegments(anime).forEach(function(x) { byKind[x.kind] = x; });
+    merged.forEach(function(x) { if (!byKind[x.kind]) byKind[x.kind] = x; });
+    merged = Object.keys(byKind).map(function(k) { return byKind[k]; });
   }
+  segments = merged;
+  segmentCache[cacheKey] = segments;
+  if (segments.length) startTimeWatcher();
+  reportSkip(info, segments);
+}
+
+// Lets the sidebar's "Search again" button stop spinning and report.
+function reportSkip(info, list) {
+  sidebar.postMessage("skipResult", {
+    count: list.length,
+    label: list.length ? describeSegments(list) : ""
+  });
 }
 
 var SOURCE_NAMES = {
@@ -453,11 +535,9 @@ function showSkip(seg) {
   try { overlay.setClickable(true); } catch(e) { log("setClickable(true) failed: " + errStr(e)); }
 }
 
-// Perform the skip. Reachable from the overlay button, the Plugins menu and
-// Alt+S, so the feature never depends on a single mechanism.
+// Reachable from the overlay button, the Plugins menu and Alt+S.
 function skipNow(via) {
   if (!activeSegment) {
-    sidebar.postMessage("skipStatus", { text: "Nothing to skip at this point." });
     return;
   }
   var target = activeSegment.end;
@@ -478,7 +558,6 @@ function skipNow(via) {
         how = "mpv time-pos";
       } catch(e3) {
         iina.console.log("[EpInfo] seek failed: " + errStr(e1) + " / " + errStr(e2) + " / " + errStr(e3));
-        sidebar.postMessage("skipStatus", { text: "Couldn't jump — try pressing \u2325S instead." });
         return;
       }
     }
@@ -487,7 +566,7 @@ function skipNow(via) {
   var what = { intro: "intro", recap: "recap", outro: "credits",
                credits: "credits", preview: "preview" }[kind] || kind;
   iina.console.log("[EpInfo] skipped " + kind + " to " + target + "s via " + how + " (" + via + ")");
-  sidebar.postMessage("skipStatus", { text: "Skipped the " + what + " — jumped to " + fmtTime(target) + "." });
+
 }
 
 function hideSkip() {
@@ -584,6 +663,21 @@ function registerSidebarHandlers() {
     overlay.postMessage("setTheme", { value: overlayTheme });
   });
 
+  // The sidebar's TMDB key — needed to resolve the IMDB id that every skip
+  // database is keyed on.
+  sidebar.onMessage("setTmdbKey", function(d) {
+    tmdbKey = (d && d.key) ? String(d.key) : "";
+  });
+
+  // "Search again" in the sidebar: ignore the cache and look once more.
+  sidebar.onMessage("refreshSkip", function() {
+    if (!skipEnabled || !currentEpisode) {
+      sidebar.postMessage("skipResult", { count: 0, label: "" });
+      return;
+    }
+    resolveSegments(currentEpisode, true);
+  });
+
   // Skip intro/recap/credits toggle
   sidebar.onMessage("setSkipEnabled", function(d) {
     skipEnabled = !!(d && d.enabled);
@@ -591,7 +685,6 @@ function registerSidebarHandlers() {
       segments = [];
       hideSkip();
       stopTimeWatcher();
-      sidebar.postMessage("skipStatus", { text: "" });
     } else if (currentEpisode) {
       resolveSegments(currentEpisode);
     }
