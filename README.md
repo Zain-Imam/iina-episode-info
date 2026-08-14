@@ -42,7 +42,7 @@
 - **Auto-overlay on pause** — info card appears when you pause, vanishes when you resume
 - **Three overlay themes** — Classic (full-width card), Compact (a single unobtrusive line), or Poster Focus (a floating card led by the poster)
 - **Customizable overlay** — adjustable shade, vertical position (top / center / bottom), and configurable pause delay
-- **Skip intro, recap and credits** — a button appears over the video when there is something to skip. No account or API key needed
+- **Skip intro, recap and credits** *(experimental)* — a button appears over the video when there is something to skip. No account or API key needed, but coverage depends on community-contributed data
 - **Recent picks & recent searches** — reuse a recent show in one click, or re-run a recent search without retyping it
 - **Per-URL memory** — once you identify a video, the show/episode is remembered against that file's URL. Re-open it later, even after restarting IINA, and your pick is restored automatically. Each URL keeps its own remembered identification
 - **Three subtitle sources, independent** — OpenSubtitles, SubDL, and Wyzie Subs each with their own search cascade. Combining them dramatically improves coverage, especially for very recent episodes that haven't synced across all databases yet
@@ -90,11 +90,19 @@ You can use any combination of the three sources. They search independently, so 
 1. Go to [sub.wyzie.io/redeem](https://sub.wyzie.io/redeem) and click Generate
 2. Paste the key in the sidebar under *Subtitles — Wyzie Subs*
 
-### Nothing to set up — Skip Intro
+### Nothing to set up — Skip Intro *(experimental)*
 
 Skip intro works with no account and no API key. Open **Skip Intro & Credits** in the sidebar and turn it on.
 
-> **Tip:** OpenSubtitles' modern API sometimes lags days/weeks behind their legacy website for very recent episodes. The plugin shows a *"View on opensubtitles.org →"* button that opens the legacy site in your browser as a manual fallback.
+> [!NOTE]
+> **This feature is experimental and its coverage is still growing.**
+>
+> Timings are not something the plugin can calculate — they come from open, community-contributed databases, so **it will not work for every movie, show or episode**. Long-running and popular series are covered well; brand-new, niche or regional titles are often missing, and some shows have credits data but no intro. Anime is generally well covered thanks to AniSkip.
+>
+> These databases grow as people contribute to them, so an episode that finds nothing today may work later — press **Search again** in the sidebar to re-check. If nothing turns up, that episode simply isn't in any of them yet.
+
+> [!TIP]
+> OpenSubtitles' modern API sometimes lags days/weeks behind their legacy website for very recent episodes. The plugin shows a *"View on opensubtitles.org →"* button that opens the legacy site in your browser as a manual fallback.
 
 ## Usage
 
@@ -111,6 +119,7 @@ Turn on **Skip Intro & Credits** in the sidebar. When playback reaches an intro,
 
 - **Click it**, or press **⌥S** (Option-S), or use *Plugins → Skip Intro / Recap / Credits*
 - It never seeks on its own — ignore it and it fades away by itself
+- No button appeared? Press **Search again** in the sidebar to look once more
 
 Timings come first from the chapter markers inside your video file, which are exact and need no internet. If the file has none, three free databases — **IntroDB**, **TheIntroDB** and **SkipDB** — are asked at once, and where several agree, that agreement is preferred. Coverage is good for popular shows and thinner for very new or niche ones; the sidebar shows what was found.
 
@@ -143,6 +152,7 @@ This plugin only contacts:
 - `api.subdl.com` / `dl.subdl.com` — for subtitle search/download (optional)
 - `sub.wyzie.ru` / `sub.wyzie.io` — for subtitle search (optional)
 - `api.introdb.app` / `api.theintrodb.org` / `api.skipdb.tv` — for intro and credit timings (only when Skip Intro is on)
+- `arm.haglund.dev` / `api.aniskip.com` — to look up anime openings and endings (only when Skip Intro is on)
 
 All API keys are stored locally in IINA's sandboxed WebView and never shared. No analytics or tracking of any kind.
 
