@@ -1,8 +1,35 @@
 // IINA Plugin: Episode Info v1.3.1
 
-const { core, event, overlay, sidebar, utils, file, menu } = iina;
+const { core, event, utils, file, menu } = iina;
+// Messages to the overlay and sidebar go through messageSafe()
+const overlay = safeMessenger(iina.overlay, ["loadFile", "onMessage", "show", "hide", "setClickable"]);
+const sidebar = safeMessenger(iina.sidebar, ["loadFile", "onMessage"]);
 
 // Helpers
+// IINA passes messages to web views inside a JS template literal, so a backtick or ${ would break them
+function messageSafe(v) {
+  if (typeof v === "string") return v.replace(/`/g, "\u02CB").replace(/\$\{/g, "$\u200B{");
+  if (Array.isArray(v)) return v.map(messageSafe);
+  if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) {
+    var out = {};
+    for (var k in v) {
+      if (Object.prototype.hasOwnProperty.call(v, k)) out[k] = messageSafe(v[k]);
+    }
+    return out;
+  }
+  return v;
+}
+
+// Wraps iina.overlay / iina.sidebar so postMessage goes through messageSafe()
+function safeMessenger(target, methods) {
+  var m = {};
+  methods.forEach(function(name) {
+    m[name] = function() { return target[name].apply(target, arguments); };
+  });
+  m.postMessage = function(name, data) { return target.postMessage(name, messageSafe(data)); };
+  return m;
+}
+
 // Turn any thrown value or API error into a readable string
 function errStr(e) {
   if (e == null) return "Unknown error";
