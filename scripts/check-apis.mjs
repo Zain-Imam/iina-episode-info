@@ -298,8 +298,10 @@ async function checkWyzieHost() {
 // 6. Every allow-listed host answers (catches a domain move)
 async function checkAllowlistedHostsLive() {
   const info = JSON.parse(readFileSync(join(ROOT, "Info.json"), "utf8"));
+  // Stremio's server on the user's own Mac, not on the internet
+  const hosts = (info.allowedDomains || []).filter((h) => h !== "127.0.0.1" && h !== "localhost");
   const dead = [];
-  for (const host of info.allowedDomains || []) {
+  for (const host of hosts) {
     try {
       const r = await get(`https://${host}/`);
       if (r.status >= 500) dead.push(`${host} -> HTTP ${r.status}`);
@@ -308,7 +310,7 @@ async function checkAllowlistedHostsLive() {
     }
   }
   need(dead.length === 0, `unreachable: ${dead.join(", ")}`);
-  return { detail: `${(info.allowedDomains || []).length} allow-listed hosts reachable` };
+  return { detail: `${hosts.length} allow-listed hosts reachable` };
 }
 
 // 7. Skip-intro sources; 401/403/429 means this runner is blocked, not broken

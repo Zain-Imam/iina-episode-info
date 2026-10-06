@@ -28,7 +28,9 @@
     "api.theintrodb.org",
     "api.skipdb.tv",
     "arm.haglund.dev",
-    "api.aniskip.com"
+    "api.aniskip.com",
+    "127.0.0.1",
+    "localhost"
   ],
   "sidebarTab": {
     "name": "Episode Info"

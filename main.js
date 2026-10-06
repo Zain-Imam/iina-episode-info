@@ -595,6 +595,675 @@ function stopTimeWatcher() {
   timeWatcher = null;
 }
 
+// Automatic Lookup (experimental): only runs when the sidebar asks, and answers with a confirmed match or "not sure"
+
+var AL_VIDEO_EXT = /\.(mkv|mp4|m4v|avi|mov|wmv|flv|webm|ts|m2ts|mts|mpg|mpeg|ogv|3gp|divx|m3u8|iso|rmvb|vob)$/i;
+var AL_POSTER = "https://image.tmdb.org/t/p/w500";
+
+// Names that say nothing about what is playing.
+var AL_GENERIC = /^(?:video|videos|stream|streams|index|master|playlist|manifest|media|file|files|download|downloads|play|watch|movie|movies|film|films|show|shows|series|tv|episode|episodes|output|chunklist|default|main|untitled|clip|sample|source|content|data|null|undefined|resolve|playback|dl|get|view|preview|original|encoded|new|test|temp|tmp|seg|segment|part|audio)$/i;
+// Folder names that are never a show or film.
+var AL_FOLDER_DENY = /^(?:users|home|downloads?|movies|films?|tv|tv shows|shows|series|videos?|media|volumes|library|plex|jellyfin|emby|torrents?|complete|completed|incoming|new|private|public|desktop|documents|mnt|data|share|shared|nas|disk ?\d*|drive|storage|anime)$/i;
+// Folders that hold extras rather than the film or episode itself.
+var AL_EXTRA_FOLDER = /^(?:extras?|featurettes?|trailers?|samples?|behind the scenes|deleted scenes|interviews|shorts|scenes|other|specials?)$/i;
+// Trailers, samples and other things that are not the episode or film.
+var AL_EXTRA = /\b(?:trailers?|teasers?|sample|featurettes?|behind the scenes|deleted scenes?|making of|bloopers?|gag reel|extras|bonus|promo|ncop|nced|creditless|music video|full movie|reaction|explained|recap|interviews?|soundtrack|ost|opening|ending)\b/i;
+// Numbering TMDB does not share: "Final Season", "2nd Season", "Part 2".
+var AL_SEASON_WORDS = /\b(?:final season|\d+(?:st|nd|rd|th) season|part \d+|cour \d+)\b/i;
+// Tags that end the title. Words like "web" or "complete" are left out, they show up in real titles
+var AL_CUT = [
+  /\b(?:2160p|1440p|1080p|1080i|720p|576p|480p|4k|uhd)\b/i,
+  /\b(?:blu-?ray|bdrip|brrip|bdremux|remux|web-?dl|webrip|hdtv|pdtv|dvdrip|hdrip|dvdscr|hdcam|camrip|telesync|hdts)\b/i,
+  /\b(?:x26[45]|h ?26[45]|hevc|xvid|divx|av1)\b/i,
+  /\b(?:dts(?:-?hd)?|truehd|atmos|e?ac3|ddp?\d|dd\+|aac\d?)\b/i,
+  /\b(?:hdr10\+?|hdr|dolby ?vision|dovi|10 ?bit|8 ?bit)\b/i,
+  /\b(?:proper|repack|rerip|internal|extended|unrated|uncut|remastered|imax|multi|dual[ -]audio|vostfr|subbed|dubbed)\b/i,
+  /\b(?:amzn|dsnp|hmax|atvp|pcok)\b/i
+];
+
+function alPad2(n) { return (n < 10 ? "0" : "") + n; }
+
+function alDecode(s, plusIsSpace) {
+  var t = String(s == null ? "" : s);
+  if (plusIsSpace) t = t.replace(/\+/g, " ");
+  // Links are sometimes encoded twice.
+  for (var i = 0; i < 2 && /%[0-9a-f]{2}/i.test(t); i++) {
+    try { t = decodeURIComponent(t); } catch (e) { break; }
+  }
+  return t;
+}
+
+// Split a link or local path by hand; IINA's JSContext has no URL class
+function alSplitLink(link) {
+  var s = String(link || "");
+  var out = { scheme: "", host: "", port: "", path: "", query: {}, segments: [] };
+  var m = /^([a-z][a-z0-9+.-]*):\/\/([^\/?#]*)([^?#]*)(\?[^#]*)?/i.exec(s);
+  if (m) {
+    out.scheme = m[1].toLowerCase();
+    var auth = m[2].replace(/^[^@]*@/, "");
+    var hp = /^(\[[^\]]*\]|[^:]*)(?::(\d+))?$/.exec(auth);
+    out.host = (hp ? hp[1] : auth).toLowerCase();
+    out.port = hp && hp[2] ? hp[2] : "";
+    out.path = m[3] || "";
+    (m[4] || "").slice(1).split("&").forEach(function(pair) {
+      if (!pair) return;
+      var eq = pair.indexOf("=");
+      var k = alDecode(eq < 0 ? pair : pair.slice(0, eq), true).toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(out.query, k)) {
+        out.query[k] = eq < 0 ? "" : alDecode(pair.slice(eq + 1), true);
+      }
+    });
+  } else if (s.charAt(0) === "/") {
+    out.scheme = "file";
+    out.path = s;
+  }
+  out.segments = out.path.split("/").filter(function(p) { return p; })
+    .map(function(p) { return alDecode(p, false); });
+  return out;
+}
+
+function alQuery(link, key) {
+  return Object.prototype.hasOwnProperty.call(link.query, key) ? String(link.query[key]) : "";
+}
+
+// Dots and underscores to spaces; hyphens stay ("WEB-DL", "Spider-Man").
+function alSeparators(s) {
+  return String(s).replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Index of the first quality/edition tag at or after `from`, or -1.
+function alFirstCut(s, from) {
+  var best = -1, rest = s.slice(from);
+  AL_CUT.forEach(function(re) {
+    var m = re.exec(rest);
+    if (m && (best < 0 || m.index + from < best)) best = m.index + from;
+  });
+  return best;
+}
+
+// A release or file name taken apart. Never throws.
+function alParseName(raw) {
+  var r = { title: "", year: null, season: null, episode: null, episodes: 1, episodeTitle: "",
+            country: null, lead: false, dash: false, dated: false, extra: false, seasonWords: false, tagged: false };
+  var s = String(raw == null ? "" : raw).replace(AL_VIDEO_EXT, "");
+  s = s.replace(/^\s*(?:\[[^\]]{0,60}\]\s*|【[^】]{0,60}】\s*)+/, "");
+  s = s.replace(/^\s*www\.\S+?\s*[-–—:]?\s+/i, "");
+  s = s.replace(/^\s*[a-z0-9-]{2,40}\.(?:com|net|org|to|me|cc|tv|io|se|ru|xyz|info|site|club|lol|vip|co|in)\s+[-–—]\s+/i, "");
+  s = alSeparators(s);
+  if (!s) return r;
+
+  r.dated = /\b(?:19|20)\d{2} (?:0[1-9]|1[0-2]) (?:0[1-9]|[12]\d|3[01])\b/.test(s);
+
+  // Season and episode, most explicit form first.
+  var mark = -1, markEnd = -1, m;
+  if ((m = /\b[Ss](\d{1,2}) ?[Ee](\d{1,4})((?:[ -]?[Ee]\d{1,4}|-\d{1,4})*)\b/.exec(s))) {
+    r.season = +m[1]; r.episode = +m[2];
+    var more = (m[3].match(/\d+/g) || []).map(Number);
+    var last = more.length ? more[more.length - 1] : r.episode;
+    if (last > r.episode && last - r.episode < 10) r.episodes = last - r.episode + 1;
+  } else if ((m = /\b(\d{1,2})[xX](\d{2,3})\b/.exec(s))) {
+    r.season = +m[1]; r.episode = +m[2];
+  } else if ((m = /\bseason ?(\d{1,2})(?: ?[-,] ?| )(?:episode|ep) ?(\d{1,4})\b/i.exec(s))) {
+    r.season = +m[1]; r.episode = +m[2];
+  }
+  if (m) {
+    mark = m.index; markEnd = m.index + m[0].length;
+  } else {
+    var so = /\b(?:[Ss](\d{1,2})|season ?(\d{1,2}))\b/i.exec(s);
+    var eo = /\b(?:episode|ep) ?(\d{1,4})\b|\bE(\d{2,4})\b/i.exec(s);
+    if (so) { r.season = +(so[1] || so[2]); mark = so.index; markEnd = so.index + so[0].length; }
+    if (eo) {
+      r.episode = +(eo[1] || eo[2]);
+      if (mark < 0 || eo.index < mark) mark = eo.index;
+      markEnd = Math.max(markEnd, eo.index + eo[0].length);
+    }
+  }
+
+  // Year: the last plausible one before the episode or quality tags ("1917" alone is a title)
+  var qc = alFirstCut(s, 0);
+  r.tagged = qc >= 0;   // carries release tags (1080p, BluRay, x264…)
+  var hard = Math.min(mark >= 0 ? mark : s.length, qc >= 0 ? qc : s.length);
+  var maxYear = new Date(Date.now()).getFullYear() + 1;
+  var yearAt = -1, ym, yre = /\b(19\d{2}|20\d{2})\b/g;
+  while (!r.dated && (ym = yre.exec(s))) {
+    var y = +ym[1];
+    if (ym.index > 0 && ym.index < hard && y <= maxYear && (mark < 0 || ym.index < mark || ym.index >= markEnd)) {
+      r.year = y; yearAt = ym.index;
+    }
+  }
+
+  // Fansub numbering: "Title - 12". Only without a year, which it could be.
+  if (r.episode == null && r.year == null) {
+    var dm = /(?:^| )[-–] ?(\d{1,4})(?:v\d)?(?= |$|[\[(])/.exec(s);
+    if (dm && +dm[1] > 0) {
+      r.episode = +dm[1]; r.dash = true;
+      if (mark < 0 || dm.index < mark) mark = dm.index;
+      markEnd = Math.max(markEnd, dm.index + dm[0].length);
+    }
+  }
+  // "01 - Pilot": the title has to come from the folder
+  if (r.episode == null && r.season == null && r.year == null) {
+    var lm = /^(\d{1,3})(?:(?: ?[-.] ?| )(?=\S)|$)/.exec(s);
+    if (lm) { r.episode = +lm[1]; r.lead = true; mark = 0; markEnd = lm[0].length; }
+  }
+
+  var cut = s.length;
+  if (mark >= 0) cut = Math.min(cut, mark);
+  if (qc >= 0) cut = Math.min(cut, qc);
+  if (yearAt >= 0) cut = Math.min(cut, yearAt);
+  var title = s.slice(0, cut).replace(/[\[({][^\])}]*$/, "");
+  // Only in the show's own name: "Pilot Part 1" is an episode title.
+  r.seasonWords = AL_SEASON_WORDS.test(title);
+  var c = /\s\(?(US|UK|AU|NZ|CA|IE)\)?\s*$/.exec(title);
+  if (c) { r.country = c[1] === "UK" ? "GB" : c[1]; title = title.slice(0, c.index); }
+  r.title = title.replace(/[\[({][^\])}]*[\])}]/g, " ").replace(/\s+/g, " ")
+    .replace(/^[\s\-–—:,]+|[\s\-–—:,(\[{]+$/g, "");
+
+  var tailAt = markEnd >= 0 ? alFirstCut(s, markEnd) : qc;
+  if (markEnd >= 0) {
+    r.episodeTitle = s.slice(markEnd, tailAt >= 0 ? tailAt : s.length).replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "");
+  }
+  // Episode titles may contain any word ("The Opening"); everything else may not.
+  var checked = r.episode != null ? r.title + " " + (tailAt >= 0 ? s.slice(tailAt) : "") : s;
+  r.extra = AL_EXTRA.test(checked) || /\bsample\b/i.test(s);
+  return r;
+}
+
+// Is the parsed title something TMDB could be searched for?
+function alTitleOk(r) {
+  var t = r && r.title ? String(r.title) : "";
+  if (!t) return false;
+  var letters = (t.match(/\p{L}/gu) || []).length;
+  var anchored = r.year != null || (r.season != null && r.episode != null && !r.lead);
+  // Numbers ("24", "1917") and two-letter titles ("It") need a year or episode beside them
+  if (/^\d{2,4}$/.test(t)) return anchored;
+  if (letters < 2 || (letters < 3 && !anchored)) return false;
+  if (AL_GENERIC.test(t)) return false;
+  var bare = t.replace(/[^0-9a-z]/gi, "");
+  if (bare.length >= 12 && /^[0-9a-f]+$/i.test(bare)) return false;      // hashes, UUIDs
+  if (/^[A-Za-z0-9_-]{20,}$/.test(t)) return false;                         // keys and tokens
+  if (/[=&]/.test(t) || /[0-9a-f]{16,}/i.test(t)) return false;             // query strings, hashes
+  if (/^(?=.*\d)[0-9a-f]{6,}$/i.test(t)) return false;                       // short hex ids: "0f9a8b7c"
+  if (/^(?=(?:.*\d){3})(?=(?:.*[a-z]){3})[a-z0-9]{10,}$/i.test(t)) return false; // random ids: "aB3kd9Q2x7Lp"
+  if (/^(?:part|vol|volume|disc|cd) ?\d+$/i.test(t)) return false;
+  return true;
+}
+
+// Title from the folder ("Show/Season 1/01.mkv"), but only if the folder looks like a show
+function alFolderContext(folders) {
+  var n = folders.length;
+  if (!n) return null;
+  var parent = String(folders[n - 1]).trim();
+  var sm = /^(?:season|series|staffel|saison|temporada|stagione) ?(\d{1,2})$|^s(\d{1,2})$/i.exec(parent);
+  if (sm) {
+    if (n < 2) return null;
+    var g = alParseName(folders[n - 2]);
+    if (!alTitleOk(g) || AL_FOLDER_DENY.test(g.title)) return null;
+    return { title: g.title, year: g.year, country: g.country, season: +(sm[1] || sm[2]), name: folders[n - 2] + "/" + parent };
+  }
+  var q = alParseName(parent);
+  var strong = q.season != null || q.year != null || alFirstCut(alSeparators(parent), 0) >= 0;
+  if (!strong || !alTitleOk(q) || AL_FOLDER_DENY.test(q.title)) return null;
+  return { title: q.title, year: q.year, country: q.country, season: q.season, name: parent };
+}
+
+// One candidate name; weak ones (titles from IINA) need an episode or a year
+function alReading(name, folders, source, weak) {
+  var p = alParseName(name);
+  var from = String(name);
+  folders = folders || [];
+  if (alTitleOk(p) && p.episode != null && folders.length) {
+    // Scene files often start with the group's name
+    var ctx = alFolderContext(folders);
+    if (ctx && ctx.title && alNorm(p.title) !== alNorm(ctx.title) &&
+        alNorm(p.title).slice(-alNorm(ctx.title).length) === alNorm(ctx.title)) {
+      p.title = ctx.title;
+      from = ctx.name + "/" + name;
+    }
+  } else if (!alTitleOk(p) && p.episode != null && folders.length) {
+    var f = alFolderContext(folders);
+    if (f) {
+      p.title = f.title; p.year = p.year || f.year; p.country = p.country || f.country;
+      if (p.season == null) p.season = f.season;
+      p.lead = false;
+      from = f.name + "/" + name;
+    }
+  } else if (!alTitleOk(p) && p.episode == null && folders.length) {
+    // A generic or numbered file inside a folder that names it
+    var parent = folders[folders.length - 1];
+    var q = alParseName(parent);
+    var named = q.year != null || (q.season != null && q.episode != null);
+    if (named && alUsable({ p: q, weak: false }) && !AL_FOLDER_DENY.test(q.title)) {
+      p = q; from = parent + "/" + name;
+    }
+  }
+  if (folders.slice(-2).some(function(f) { return AL_EXTRA_FOLDER.test(String(f).trim()); })) p.extra = true;
+  // Web page titles like "… Ending Scene" are clips
+  if (weak && AL_EXTRA.test(alSeparators(name))) p.extra = true;
+  return { p: p, source: source, weak: !!weak, from: from };
+}
+
+function alUsable(rd) {
+  var p = rd.p;
+  if (!alTitleOk(p) || p.dated || p.lead) return false;
+  if (p.season != null && p.episode == null) return false;     // a whole-season pack
+  if (rd.weak && p.episode == null && !p.year) return false;
+  return true;
+}
+
+function alDispositionName(v) {
+  var m = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(v) || /filename\s*=\s*"([^"]+)"/i.exec(v) ||
+          /filename\s*=\s*([^;]+)/i.exec(v);
+  return m ? alDecode(m[1].trim(), false) : "";
+}
+
+// Ids a link carries, e.g. Comet's media_id and season/episode
+function alIdsFromLink(link) {
+  var ids = { imdb: null, season: null, episode: null };
+  ["media_id", "imdb", "imdb_id", "imdbid"].forEach(function(k) {
+    var v = alQuery(link, k);
+    if (!ids.imdb && /^tt\d{6,9}$/.test(v)) ids.imdb = v;
+  });
+  var i = link.segments.indexOf("playback");
+  if (i >= 0) {
+    var seg = link.segments.slice(i + 1);
+    if (/^[0-9a-f]{40}$/i.test(seg[0] || "") && /^\d+$/.test(seg[3] || "") && /^\d+$/.test(seg[4] || "")) {
+      ids.season = +seg[3]; ids.episode = +seg[4];
+    }
+  }
+  return ids;
+}
+
+// Stremio's local torrent server: /<info hash>/<file index>
+function alStremioPath(link) {
+  var m = /^\/([0-9a-fA-F]{40})\/(-?\d+)\/?$/.exec(link.path);
+  if (!m || !/^https?$/.test(link.scheme)) return null;
+  if (link.host !== "127.0.0.1" && link.host !== "localhost") return null;
+  return { origin: link.scheme + "://" + link.host + (link.port ? ":" + link.port : ""), hash: m[1].toLowerCase(), idx: +m[2] };
+}
+
+// stats.json names the file; for index -1 take the largest video, like Stremio
+async function alStremioName(st) {
+  async function stats(path) {
+    var r = await withTimeout(iina.http.get(st.origin + path, {}), 4000, "Stremio stats");
+    if (r.statusCode !== 200) return null;
+    return r.data || JSON.parse(r.text || "null");
+  }
+  var b = st.idx >= 0 ? await stats("/" + st.hash + "/" + st.idx + "/stats.json") : null;
+  if (b && b.streamName) return { file: String(b.streamName), folder: b.name ? String(b.name) : "" };
+  var t = await stats("/" + st.hash + "/stats.json");
+  if (!t || !t.files || !t.files.length) return null;
+  var pick = null;
+  t.files.forEach(function(f, i) {
+    if (st.idx >= 0 && i !== st.idx) return;
+    if (!AL_VIDEO_EXT.test(String(f.name || ""))) return;
+    if (!pick || (f.length || 0) > (pick.length || 0)) pick = f;
+  });
+  return pick ? { file: String(pick.name), folder: t.name ? String(t.name) : "" } : null;
+}
+
+// Every name the file is known by, best first.
+async function alReadings(h, link) {
+  var out = [];
+  var st = alStremioPath(link);
+  if (st) {
+    var sn = null;
+    try { sn = await alStremioName(st); } catch (e) { sn = null; }
+    if (sn) out.push(alReading(sn.file, sn.folder ? [sn.folder] : [], "Stremio"));
+  }
+  ["filename", "file", "fn", "name", "title", "torrent_name"].forEach(function(k) {
+    var v = alQuery(link, k);
+    if (v) out.push(alReading(v, [], "link"));
+  });
+  ["response-content-disposition", "rscd"].forEach(function(k) {
+    var v = alDispositionName(alQuery(link, k));
+    if (v) out.push(alReading(v, [], "link"));
+  });
+  if (link.segments.length && !st) {
+    var segs = link.segments, last = segs[segs.length - 1];
+    // The end of a link only counts if it looks like a file name
+    out.push(alReading(last, segs.slice(0, -1), link.scheme === "file" ? "file name" : "link",
+                       link.scheme !== "file" && !AL_VIDEO_EXT.test(last)));
+  }
+  var lastSeg = link.segments.length ? link.segments[link.segments.length - 1] : "";
+  if (h.metadataTitle) {
+    out.push(alReading(h.metadataTitle, [], "title in the file", true));
+  } else if (h.mediaTitle && h.mediaTitle !== lastSeg && h.mediaTitle !== h.filename) {
+    out.push(alReading(h.mediaTitle, [], "title", true));
+  }
+  return out;
+}
+
+// TMDB, cached in @data (errors aren't cached, a 404 is kept for a day)
+var AL_CACHE_FILE = "@data/tmdb-cache.json";
+var AL_CACHE_MAX = 300;
+var alCache = null, alCacheDirty = false;
+
+function alCacheLoad() {
+  if (alCache) return;
+  try {
+    var raw = file.exists(AL_CACHE_FILE) ? file.read(AL_CACHE_FILE) : "";
+    alCache = raw ? JSON.parse(raw) : {};
+  } catch (e) { alCache = {}; }
+  if (!alCache || typeof alCache !== "object" || Array.isArray(alCache)) alCache = {};
+}
+
+function alCacheFlush() {
+  if (!alCache || !alCacheDirty) return;
+  var keys = Object.keys(alCache);
+  if (keys.length > AL_CACHE_MAX) {
+    keys.sort(function(a, b) { return alCache[a].t - alCache[b].t; });
+    keys.slice(0, keys.length - AL_CACHE_MAX).forEach(function(k) { delete alCache[k]; });
+  }
+  try { file.write(AL_CACHE_FILE, JSON.stringify(alCache)); } catch (e) {}
+  alCacheDirty = false;
+}
+
+async function alTmdb(path, params, ttlHours, trim) {
+  if (!tmdbKey) throw new Error("no TMDB key");
+  alCacheLoad();
+  var key = path + "?" + Object.keys(params).sort().map(function(k) { return k + "=" + params[k]; }).join("&");
+  var now = Date.now(), hit = alCache[key];
+  if (hit && now - hit.t < (hit.v === null ? 24 : ttlHours) * 3600000) return hit.v;
+  var p = { api_key: tmdbKey };
+  Object.keys(params).forEach(function(k) { p[k] = params[k]; });
+  var r = await withTimeout(iina.http.get("https://api.themoviedb.org/3" + path, { params: p }), HTTP_TIMEOUT_MS, "TMDB");
+  if (r.statusCode === 404) { alCache[key] = { t: now, v: null }; alCacheDirty = true; return null; }
+  if (r.statusCode !== 200) throw new Error("TMDB answered " + r.statusCode);
+  var v = trim(r.data || JSON.parse(r.text || "{}"));
+  alCache[key] = { t: now, v: v };
+  alCacheDirty = true;
+  return v;
+}
+
+async function alSearch(kind, title, extra) {
+  var params = { query: title, include_adult: "false" };
+  Object.keys(extra || {}).forEach(function(k) { params[k] = String(extra[k]); });
+  var v = await alTmdb("/search/" + kind, params, 168, function(d) {
+    return (d.results || []).slice(0, 20).map(function(x) {
+      return { id: x.id, name: x.name || x.title || "", original: x.original_name || x.original_title || "",
+               date: x.first_air_date || x.release_date || "", country: x.origin_country || [],
+               votes: x.vote_count || 0 };
+    });
+  });
+  return v || [];
+}
+
+function alTvDetails(id) {
+  return alTmdb("/tv/" + id, { append_to_response: "alternative_titles,external_ids" }, 24, function(d) {
+    return { id: d.id, name: d.name || "", original: d.original_name || "", date: d.first_air_date || "",
+             poster: d.poster_path || "", votes: d.vote_count || 0,
+             seasons: (d.seasons || []).map(function(s) { return s.season_number; }),
+             alt: ((d.alternative_titles && d.alternative_titles.results) || []).map(function(t) { return t.title; }),
+             imdb: (d.external_ids && d.external_ids.imdb_id) || "" };
+  });
+}
+
+function alSeason(id, n) {
+  return alTmdb("/tv/" + id + "/season/" + n, {}, 24, function(d) {
+    return { poster: d.poster_path || "",
+             episodes: (d.episodes || []).map(function(e) {
+               return { n: e.episode_number, name: e.name || "", air: e.air_date || "",
+                        rating: e.vote_average || 0, overview: e.overview || "", runtime: e.runtime || 0 };
+             }) };
+  });
+}
+
+function alMovieDetails(id) {
+  return alTmdb("/movie/" + id, { append_to_response: "alternative_titles,external_ids" }, 168, function(d) {
+    return { id: d.id, title: d.title || "", original: d.original_title || "", date: d.release_date || "",
+             runtime: d.runtime || 0, rating: d.vote_average || 0, overview: d.overview || "",
+             poster: d.poster_path || "", votes: d.vote_count || 0,
+             alt: ((d.alternative_titles && d.alternative_titles.titles) || []).map(function(t) { return t.title; }),
+             imdb: d.imdb_id || (d.external_ids && d.external_ids.imdb_id) || "" };
+  });
+}
+
+function alFind(imdb) {
+  return alTmdb("/find/" + imdb, { external_source: "imdb_id" }, 168, function(d) {
+    return { movie: (d.movie_results || []).map(function(x) { return x.id; }),
+             tv: (d.tv_results || []).map(function(x) { return x.id; }),
+             episode: (d.tv_episode_results || []).map(function(x) {
+               return { show: x.show_id, season: x.season_number, episode: x.episode_number };
+             }) };
+  });
+}
+
+// Deciding
+function alNorm(s) {
+  return String(s || "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()
+    .replace(/&/g, " and ").replace(/['’`ʼ]/g, "").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function alTitleMatches(title, names) {
+  var a = alNorm(title), a2 = alNorm(String(title).replace(/^\s*(?:the|a|an)\s+/i, ""));
+  if (!a) return false;
+  return (names || []).some(function(n) {
+    var b = alNorm(n);
+    return b && (b === a || alNorm(String(n).replace(/^\s*(?:the|a|an)\s+/i, "")) === a2);
+  });
+}
+
+function alYearOf(date) { var y = parseInt(String(date || "").slice(0, 4), 10); return isNaN(y) ? 0 : y; }
+
+// The file's length should be close to TMDB's runtime
+function alLengthFits(seconds, minutes, count) {
+  if (!(minutes > 0)) return true;
+  var ratio = seconds / (minutes * 60 * (count || 1));
+  return ratio >= 0.5 && ratio <= 2;
+}
+
+// Search results whose title (or original or alternative title) is the name.
+async function alTitleCandidates(kind, list, title) {
+  var out = list.slice(0, 10).filter(function(x) { return alTitleMatches(title, [x.name, x.original]); });
+  if (out.length) return out;
+  for (var i = 0; i < Math.min(3, list.length); i++) {
+    var d = kind === "tv" ? await alTvDetails(list[i].id) : await alMovieDetails(list[i].id);
+    if (d && alTitleMatches(title, d.alt)) out.push(list[i]);
+  }
+  return out;
+}
+
+// Several fit: only take the first if it towers over the rest.
+function alDominant(fits) {
+  fits.sort(function(a, b) { return b.votes - a.votes; });
+  return fits[0].votes >= 50 && fits[0].votes >= 10 * (fits[1].votes || 0) ? fits[0] : null;
+}
+
+function alNotSure(reason, query) { return { info: null, reason: reason, query: query || "" }; }
+
+function alTvInfo(d, sd, ep, season) {
+  var info = { isStream: false, showTitle: d.name, epTitle: ep.name || ("Episode " + ep.n),
+    code: "S" + alPad2(season) + "E" + alPad2(ep.n), airDate: ep.air,
+    rating: ep.rating ? ep.rating.toFixed(1) : "", overview: ep.overview,
+    posterUrl: sd.poster ? AL_POSTER + sd.poster : (d.poster ? AL_POSTER + d.poster : ""),
+    tmdbId: String(d.id), season: season, episode: ep.n, isMovie: false };
+  if (d.imdb) info.parentImdbId = d.imdb;
+  return info;
+}
+
+function alMovieInfo(d) {
+  var info = { showTitle: "Movie", epTitle: d.title, code: d.date ? d.date.slice(0, 4) : "",
+    airDate: d.date, isStream: false, rating: d.rating ? d.rating.toFixed(1) : "",
+    overview: d.overview, posterUrl: d.poster ? AL_POSTER + d.poster : "",
+    tmdbId: String(d.id), season: null, episode: null, isMovie: true };
+  if (d.imdb) info.imdbId = d.imdb;
+  return info;
+}
+
+async function alMatchTv(p, seconds) {
+  if (p.seasonWords) return alNotSure("its season numbering may not match TMDB's", p.title);
+  if (p.season === 0) return alNotSure("specials are numbered differently everywhere", p.title);
+  var list = await alSearch("tv", p.title, p.year ? { first_air_date_year: p.year } : null);
+  var loose = false;
+  if (p.year && !(await alTitleCandidates("tv", list, p.title)).length) {
+    // A year in an episode's name is sometimes when it aired, not when the show began.
+    list = await alSearch("tv", p.title, null);
+    loose = true;
+  }
+  var cands = await alTitleCandidates("tv", list, p.title);
+  if (p.year) {
+    cands = cands.filter(function(c) {
+      var y = alYearOf(c.date);
+      return y && (loose ? y <= p.year : Math.abs(y - p.year) <= 1);
+    });
+  }
+  if (p.country) cands = cands.filter(function(c) { return c.country.indexOf(p.country) >= 0; });
+  if (!cands.length) return alNotSure("TMDB has no show called “" + p.title + "”", p.title);
+
+  // A show we can't check (no season number) still counts against one that fits
+  var fits = [], why = "", unresolved = "";
+  for (var i = 0; i < Math.min(3, cands.length); i++) {
+    var d = await alTvDetails(cands[i].id);
+    if (!d) continue;
+    var regular = d.seasons.filter(function(n) { return n > 0; });
+    var season = p.season;
+    if (season == null) {
+      if (regular.length !== 1) { why = unresolved = "no season number, and “" + d.name + "” has several"; continue; }
+      season = regular[0];
+    }
+    var sd = await alSeason(d.id, season);
+    var ep = sd ? sd.episodes.filter(function(e) { return e.n === p.episode; })[0] : null;
+    if (!ep) { why = "“" + d.name + "” has no S" + alPad2(season) + "E" + alPad2(p.episode); continue; }
+    if (!alLengthFits(seconds, ep.runtime, p.episodes)) { why = "the video's length doesn't match the episode"; continue; }
+    fits.push({ votes: d.votes, info: alTvInfo(d, sd, ep, season) });
+  }
+  if (fits.length && unresolved) return alNotSure(unresolved, p.title);
+  if (fits.length === 1) return { info: fits[0].info, query: p.title };
+  if (fits.length > 1) {
+    var top = alDominant(fits);
+    return top ? { info: top.info, query: p.title } : alNotSure("several shows called “" + p.title + "” fit", p.title);
+  }
+  return alNotSure(unresolved || why || "no matching episode", p.title);
+}
+
+async function alMatchMovie(p, seconds) {
+  var list = await alSearch("movie", p.title, p.year ? { primary_release_year: p.year } : null);
+  var cands = await alTitleCandidates("movie", list, p.title);
+  if (p.year && !cands.length) {
+    // Released elsewhere first or a year off: retry without the year
+    list = await alSearch("movie", p.title, null);
+    cands = await alTitleCandidates("movie", list, p.title);
+  }
+  if (p.year) cands = cands.filter(function(c) { var y = alYearOf(c.date); return y && Math.abs(y - p.year) <= 1; });
+  if (!cands.length) return alNotSure("TMDB has no film called “" + p.title + "”" + (p.year ? " from " + p.year : ""), p.title);
+
+  var fits = [], why = "";
+  for (var i = 0; i < Math.min(3, cands.length); i++) {
+    var d = await alMovieDetails(cands[i].id);
+    if (!d) continue;
+    if (!alLengthFits(seconds, d.runtime, 1)) { why = "the video's length doesn't match the film"; continue; }
+    // On a plain name an obscure film is more likely a home video
+    if (d.votes < 10 && !p.tagged) { why = "“" + d.title + "” is too little-known to match on a plain name"; continue; }
+    fits.push({ votes: d.votes, info: alMovieInfo(d) });
+  }
+  if (fits.length === 1) return { info: fits[0].info, query: p.title };
+  if (fits.length > 1) {
+    var top = alDominant(fits);
+    return top ? { info: top.info, query: p.title } : alNotSure("several films called “" + p.title + "” fit", p.title);
+  }
+  return alNotSure(why || "no matching film", p.title);
+}
+
+// An IMDb id in the link settles it
+async function alFromImdb(ids, readings) {
+  var f = await alFind(ids.imdb);
+  if (!f) return null;
+  if (f.episode.length) {
+    var x = f.episode[0];
+    return alExactTv(x.show, x.season, x.episode);
+  }
+  if (f.tv.length) {
+    var s = ids.season, e = ids.episode;
+    if (s == null || e == null) {
+      var named = readings.filter(function(rd) { return rd.p.season != null && rd.p.episode != null; })[0];
+      if (named) { s = named.p.season; e = named.p.episode; }
+    }
+    if (s == null || e == null) return alNotSure("the link names the show but not the episode", "");
+    return alExactTv(f.tv[0], s, e);
+  }
+  if (f.movie.length) {
+    var d = await alMovieDetails(f.movie[0]);
+    return d ? { info: alMovieInfo(d), query: d.title } : null;
+  }
+  return null;
+}
+
+async function alExactTv(showId, season, episode) {
+  var d = await alTvDetails(showId);
+  var sd = d ? await alSeason(showId, season) : null;
+  var ep = sd ? sd.episodes.filter(function(e) { return e.n === episode; })[0] : null;
+  if (!ep) return alNotSure("TMDB has no S" + alPad2(season) + "E" + alPad2(episode) + (d ? " of “" + d.name + "”" : ""), d ? d.name : "");
+  return { info: alTvInfo(d, sd, ep, season), query: d.name };
+}
+
+// seconds() is read late: the length can arrive after the file
+async function alLookup(h, seconds) {
+  var link = alSplitLink(h.path || h.url || "");
+  var readings = await alReadings(h, link);
+  var ids = alIdsFromLink(link);
+  if (ids.imdb) {
+    var exact = await alFromImdb(ids, readings);
+    if (exact) return exact;
+  }
+
+  var extra = readings.filter(function(rd) { return rd.p.extra; })[0];
+  if (extra) return alNotSure("it looks like a trailer, sample or extra", "");
+  var usable = readings.filter(alUsable);
+  var primary = usable[0];
+  if (!primary) {
+    var named = readings.filter(function(rd) { return alTitleOk(rd.p); })[0];
+    return alNotSure("there is no usable name", named ? named.p.title : "");
+  }
+  var p = primary.p;
+  for (var i = 1; i < usable.length; i++) {
+    var o = usable[i].p;
+    var sameShape = (o.episode != null) === (p.episode != null);
+    if (!sameShape) continue;
+    if (alNorm(o.title) !== alNorm(p.title) ||
+        (o.episode != null && (o.episode !== p.episode || (o.season != null && p.season != null && o.season !== p.season)))) {
+      return alNotSure("its names disagree (“" + p.title + "”, “" + o.title + "”)", p.title);
+    }
+  }
+  var len = seconds();
+  if (!(len > 0)) return alNotSure("its length is unknown (a live stream?)", p.title);
+  var out = p.episode != null ? await alMatchTv(p, len) : await alMatchMovie(p, len);
+  if (out.info) out.from = primary.from;
+  return out;
+}
+
+function alHints() {
+  function str(prop) { try { return String(iina.mpv.getString(prop) || ""); } catch (e) { return ""; } }
+  return { path: str("path"), url: currentVideoUrl, filename: str("filename"),
+           mediaTitle: str("media-title"), metadataTitle: str("metadata/by-key/title") };
+}
+
+function alSeconds() {
+  try { return iina.mpv.getNumber("duration") || 0; } catch (e) { return 0; }
+}
+
+// Only answer if that file is still playing
+async function autoLookup(d) {
+  var forUrl = currentVideoUrl;
+  if (!d || !d.url || d.url !== forUrl) return;
+  var reply = { url: forUrl, info: null, query: "", reason: "" };
+  try {
+    var out = await alLookup(alHints(), alSeconds);
+    reply.info = out.info || null;
+    reply.query = out.query || "";
+    reply.reason = out.reason || "";
+    if (out.info) reply.info.auto = { from: out.from || "" };
+  } catch (e) {
+    reply.reason = "the lookup failed (" + errStr(e) + ")";
+  }
+  alCacheFlush();
+  if (currentVideoUrl !== forUrl) return;
+  log("Automatic Lookup: " + (reply.info
+    ? "found " + reply.info.showTitle + (reply.info.isMovie ? "" : " " + reply.info.code)
+    : "not sure — " + reply.reason));
+  sidebar.postMessage("autoLookupResult", reply);
+}
+
 // Sidebar handlers
 function registerSidebarHandlers() {
 
@@ -655,6 +1324,9 @@ function registerSidebarHandlers() {
   sidebar.onMessage("setTmdbKey", function(d) {
     tmdbKey = (d && d.key) ? String(d.key) : "";
   });
+
+  // Automatic Lookup: only asked for when switched on
+  sidebar.onMessage("autoLookup", function(d) { autoLookup(d); });
 
   // "Search again" in the sidebar: ignore the cache and look once more.
   sidebar.onMessage("refreshSkip", function() {

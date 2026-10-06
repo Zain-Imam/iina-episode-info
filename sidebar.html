@@ -198,6 +198,23 @@
   </label>
 </div>
 
+<!-- Automatic Lookup -->
+<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:7px 10px;margin-bottom:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#fff">Automatic Lookup <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,165,0,.8);margin-left:3px">Experimental</span></div>
+      <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px">Identifies the file by its name &nbsp;·&nbsp; shows nothing when unsure</div>
+    </div>
+    <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0;margin-left:10px;cursor:pointer">
+      <input type="checkbox" id="auto-toggle" style="opacity:0;width:0;height:0;position:absolute" onchange="doToggleAutoLookup(this.checked)" />
+      <span id="auto-track" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.2);border-radius:26px;transition:background .2s">
+        <span id="auto-thumb" style="position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:left .2s"></span>
+      </span>
+    </label>
+  </div>
+  <div id="auto-status" style="display:none;font-size:11px;color:rgba(255,255,255,.5);line-height:1.45;margin-top:6px"></div>
+</div>
+
 <div id="ov-dismiss">
   <button onclick="iina.postMessage('overlayCloseRequest',{})">&#10005;&nbsp; Dismiss overlay</button>
 </div>
@@ -212,6 +229,10 @@
   <div id="s-meta"></div>
   <div id="s-desc" class="collapsed"></div>
   <button id="show-more" onclick="toggleDesc()">Show more ▾</button>
+  <div id="s-auto" style="display:none;font-size:10px;color:rgba(255,255,255,.4);margin:6px 0 2px">
+    Found automatically &nbsp;·&nbsp;
+    <button onclick="doAutoWrong()" style="background:none;border:none;color:rgba(120,180,255,.95);font-size:10px;cursor:pointer;padding:0;font-family:inherit">Not right? Search</button>
+  </div>
   <button id="clear-btn" onclick="doClear()">✕  Clear selection</button>
 </div>
 
@@ -539,6 +560,10 @@ function resetPanel() {
 
 // Saved card
 function showSaved(info) {
+  // Any pick replaces a lookup match; showAutoMatch() adds the line back for its own
+  autoShown = false;
+  document.getElementById("s-auto").style.display = "none";
+  autoStatus("");
   document.getElementById("s-show").textContent  = info.showTitle || "";
   document.getElementById("s-title").textContent = info.epTitle   || "";
 
@@ -595,6 +620,8 @@ function toggleDesc() {
 }
 
 function doClear() {
+  // Clearing a match means "not this one": don't guess it again
+  if (autoShown) { rememberAuto(currentVideoUrl, { rejected: true }); autoShown = false; }
   // also forget this URL's saved pick
   clearCurrentUrlFromMap();
   try{localStorage.removeItem("epinfo_ep");}catch(e){}
@@ -835,6 +862,114 @@ function doToggleOverlay(enabled) {
   iina.postMessage("setOverlayEnabled", { enabled: enabled });
 }
 
+// Automatic Lookup (experimental)
+// Matches go in epinfo_auto_map, never in the user's own picks or Recent Picks
+var AUTO_MAP_CAP = 300;
+var autoShown = false;   // the saved card is showing a match, not a pick
+
+function autoLookupOn() {
+  try { return localStorage.getItem("epinfo_auto_lookup") === "true"; } catch(e) { return false; }
+}
+function paintAutoToggle(on) {
+  var box = document.getElementById("auto-toggle");
+  var tr  = document.getElementById("auto-track");
+  var th  = document.getElementById("auto-thumb");
+  if (box) box.checked = on;
+  if (tr) tr.style.background = on ? "rgba(48,209,88,.85)" : "rgba(255,255,255,.2)";
+  if (th) th.style.left = on ? "21px" : "3px";
+}
+paintAutoToggle(autoLookupOn());
+
+function loadAutoMap() {
+  try { return JSON.parse(localStorage.getItem("epinfo_auto_map") || "{}") || {}; }
+  catch(e) { return {}; }
+}
+function saveAutoMap(m) {
+  var keys = Object.keys(m);
+  if (keys.length > AUTO_MAP_CAP) {
+    keys.sort(function(a, b) { return (m[a].at || 0) - (m[b].at || 0); });
+    keys.slice(0, keys.length - AUTO_MAP_CAP).forEach(function(k) { delete m[k]; });
+  }
+  try { localStorage.setItem("epinfo_auto_map", JSON.stringify(m)); } catch(e) {}
+}
+function rememberAuto(url, entry) {
+  if (!url) return;
+  var m = loadAutoMap();
+  entry.at = Date.now();
+  m[url] = entry;
+  saveAutoMap(m);
+}
+
+// Status line under the switch; detail is the reason
+function autoStatus(text, detail) {
+  var el = document.getElementById("auto-status");
+  if (!el) return;
+  el.textContent = text || "";
+  if (text && detail) {
+    var d = document.createElement("div");
+    d.style.cssText = "font-size:10px;color:rgba(255,255,255,.3);margin-top:2px";
+    d.textContent = detail.charAt(0).toUpperCase() + detail.slice(1) + ".";
+    el.appendChild(d);
+  }
+  el.style.display = text ? "block" : "none";
+}
+
+function doToggleAutoLookup(on) {
+  try { localStorage.setItem("epinfo_auto_lookup", on ? "true" : "false"); } catch(e) {}
+  paintAutoToggle(on);
+  if (on) {
+    if (currentVideoUrl && !document.getElementById("saved").classList.contains("on")) startAutoLookup(currentVideoUrl);
+  } else {
+    autoStatus("");
+    // Off means off: a match on screen goes too.
+    if (autoShown) { autoShown = false; showUnidentified(); }
+  }
+}
+
+function startAutoLookup(url) {
+  var hit = loadAutoMap()[url];
+  if (hit && hit.rejected) { autoStatus("You chose to search for this one yourself."); return; }
+  if (hit && hit.info) { showAutoMatch(hit.info); return; }
+  if (!TK) { autoStatus("Automatic Lookup needs your TMDB key — add it below."); return; }
+  autoStatus("Looking it up…");
+  iina.postMessage("autoLookup", { url: url });
+}
+
+function showAutoMatch(info) {
+  restoreSelection(info);
+  autoShown = true;
+  document.getElementById("s-auto").style.display = "block";
+}
+
+iina.onMessage("autoLookupResult", function(d) {
+  if (!d || d.url !== currentVideoUrl || !autoLookupOn()) return;
+  // A pick made while the lookup ran wins.
+  if (document.getElementById("saved").classList.contains("on") && !autoShown) return;
+  if (d.info) {
+    rememberAuto(d.url, { info: d.info });
+    showAutoMatch(d.info);
+  } else {
+    autoStatus("Not sure what this is — search below.", d.reason);
+    var q = document.getElementById("q");
+    if (q && !q.value && d.query) q.value = d.query;
+  }
+});
+
+// "Not right? Search": forget the match and never guess this file again
+function doAutoWrong() {
+  var info = null;
+  try { info = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
+  rememberAuto(currentVideoUrl, { rejected: true });
+  autoShown = false;
+  showUnidentified();
+  autoStatus("Search below for the right one.");
+  var q = document.getElementById("q");
+  if (q) {
+    q.value = info ? ((info.isMovie ? info.epTitle : info.showTitle) || "") : "";
+    q.focus();
+  }
+}
+
 iina.onMessage("overlayStatus", function(d){
   var el=document.getElementById("ov-st");
   if(el) el.textContent = d.text||"";
@@ -852,38 +987,50 @@ iina.onMessage("fileChanged", function(d){
 
   if (saved) {
     // URL is already identified — restore silently
-    try { localStorage.setItem("epinfo_ep", JSON.stringify(saved)); } catch(e) {}
-    showSaved(saved);
-    if (WZK) document.getElementById("wz-search-btn").disabled = false;
-    var osBtn = document.getElementById("os-search-btn");
-    if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
-    var sdBtn = document.getElementById("sd-search-btn");
-    if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
-    iina.postMessage("episodeSelected", saved);
-    // Update the opensubtitles.org link if the ids are already cached
-    if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
-    // Resolve IMDB ids early for the .org link
-    if (TK && saved.tmdbId && !saved.imdbId && !saved.parentImdbId) {
-      iina.postMessage("resolveImdbOnly", {
-        tmdbKey: TK,
-        tmdbId:  saved.tmdbId,
-        isMovie: !!saved.isMovie,
-        season:  saved.season  || null,
-        episode: saved.episode || null
-      });
-    }
+    restoreSelection(saved);
   } else {
-    // Unknown URL: clear, but keep it in the map (unlike doClear)
-    try { localStorage.removeItem("epinfo_ep"); } catch(e) {}
-    document.getElementById("saved").classList.remove("on");
-    iina.postMessage("clearEpisode", {});
-    if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
-    if (typeof resetOs === "function") { resetOs(); var osBtn2 = document.getElementById("os-search-btn"); if (osBtn2) osBtn2.disabled = true; }
-    if (typeof resetSd === "function") { resetSd(); var sdBtn2 = document.getElementById("sd-search-btn"); if (sdBtn2) sdBtn2.disabled = true; }
-    var orgRow = document.getElementById("os-dotorg-row");
-    if (orgRow) orgRow.style.display = "none";
+    showUnidentified();
+    // Off unless the user switched it on; a pick of their own always wins.
+    if (autoLookupOn() && currentVideoUrl) startAutoLookup(currentVideoUrl);
   }
 });
+
+// Restore a selection: a saved pick or a lookup match
+function restoreSelection(saved) {
+  try { localStorage.setItem("epinfo_ep", JSON.stringify(saved)); } catch(e) {}
+  showSaved(saved);
+  if (WZK) document.getElementById("wz-search-btn").disabled = false;
+  var osBtn = document.getElementById("os-search-btn");
+  if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
+  var sdBtn = document.getElementById("sd-search-btn");
+  if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
+  iina.postMessage("episodeSelected", saved);
+  // Update the opensubtitles.org link if the ids are already cached
+  if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
+  // Resolve IMDB ids early for the .org link
+  if (TK && saved.tmdbId && !saved.imdbId && !saved.parentImdbId) {
+    iina.postMessage("resolveImdbOnly", {
+      tmdbKey: TK,
+      tmdbId:  saved.tmdbId,
+      isMovie: !!saved.isMovie,
+      season:  saved.season  || null,
+      episode: saved.episode || null
+    });
+  }
+}
+
+// Unknown URL: clear, but keep it in the map (unlike doClear)
+function showUnidentified() {
+  try { localStorage.removeItem("epinfo_ep"); } catch(e) {}
+  document.getElementById("saved").classList.remove("on");
+  document.getElementById("s-auto").style.display = "none";
+  iina.postMessage("clearEpisode", {});
+  if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
+  if (typeof resetOs === "function") { resetOs(); var osBtn2 = document.getElementById("os-search-btn"); if (osBtn2) osBtn2.disabled = true; }
+  if (typeof resetSd === "function") { resetSd(); var sdBtn2 = document.getElementById("sd-search-btn"); if (sdBtn2) sdBtn2.disabled = true; }
+  var orgRow = document.getElementById("os-dotorg-row");
+  if (orgRow) orgRow.style.display = "none";
+}
 
 // API key
 (function initApiKey() {

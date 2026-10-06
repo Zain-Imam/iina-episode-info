@@ -40,6 +40,7 @@
 
 - **TMDB-powered episode & movie info** — search any title, see show name, episode title, code, air date, rating, synopsis, and poster
 - **Auto-overlay on pause** — info card appears when you pause, vanishes when you resume
+- **Automatic Lookup** *(experimental)* — identifies what's playing from its file name or link, so the card is ready without searching. Works with local files, Stremio, debrid links and most online links. When it isn't sure, it shows nothing rather than guess
 - **Three overlay themes** — Classic (full-width card), Compact (a single unobtrusive line), or Poster Focus (a floating card led by the poster)
 - **Customizable overlay** — adjustable shade, vertical position (top / center / bottom), and configurable pause delay
 - **Skip intro, recap and credits** *(experimental)* — a button appears over the video when there is something to skip. No account or API key needed, but coverage depends on community-contributed data
@@ -90,6 +91,10 @@ You can use any combination of the three sources. They search independently, so 
 1. Go to [sub.wyzie.io/redeem](https://sub.wyzie.io/redeem) and click Generate
 2. Paste the key in the sidebar under *Subtitles — Wyzie Subs*
 
+### Nothing to set up — Automatic Lookup *(experimental)*
+
+Uses the same TMDB key. Turn on **Automatic Lookup** at the top of the sidebar; it is off until you do.
+
 ### Nothing to set up — Skip Intro *(experimental)*
 
 Skip intro works with no account and no API key. Open **Skip Intro & Credits** in the sidebar and turn it on.
@@ -112,6 +117,19 @@ Skip intro works with no account and no API key. Open **Skip Intro & Credits** i
 4. Resume — overlay disappears automatically
 
 The next time you open the same file or stream, your identification is restored automatically — no need to search again.
+
+### Automatic Lookup *(experimental)*
+
+With **Automatic Lookup** on, a file you haven't identified yourself is looked up as soon as it opens, and the card is marked **Found automatically**. Pause, and the overlay is there.
+
+- **Where the name comes from** — the file name, the link, the folder it sits in (`Show/Season 1/01.mkv`), the title stored in the file, or, for Stremio torrents, Stremio's own streaming server on your Mac. Links that carry an IMDb id (such as Comet's) are matched exactly
+- **Only what it can confirm** — the title must match TMDB (or its original or alternative title), the year must agree, the episode must exist, and the video's length must fit. Shows or films that share a name with nothing to tell them apart, trailers, samples, clips, live streams and names with nothing in them all stay unidentified, and the search box is filled in with what it found
+- **Wrong?** — press **Not right? Search** on the card. That file won't be guessed again, and the pick you make instead is remembered as yours
+- **Your picks always win** — a file you identified yourself is never looked up, and matches never appear in Recent Picks
+- **Quick on the next episode** — TMDB answers are kept on your Mac for a day to a week, so the rest of a season needs almost no requests
+
+> [!NOTE]
+> **This feature is experimental.** A file name is only a hint, so it won't recognise everything: badly named files, absolute anime numbering (`One Piece - 1089`) and links that carry no name at all are left for you to search. It is built to show nothing rather than the wrong episode.
 
 ### Skipping intros and credits
 
@@ -153,8 +171,9 @@ This plugin only contacts:
 - `sub.wyzie.ru` / `sub.wyzie.io` — for subtitle search (optional)
 - `api.introdb.app` / `api.theintrodb.org` / `api.skipdb.tv` — for intro and credit timings (only when Skip Intro is on)
 - `arm.haglund.dev` / `api.aniskip.com` — to look up anime openings and endings (only when Skip Intro is on)
+- `127.0.0.1` / `localhost` — Stremio's streaming server on your own Mac, to read the file name of a torrent you're streaming (only when Automatic Lookup is on). This never leaves your Mac
 
-All API keys are stored locally in IINA's sandboxed WebView and never shared. No analytics or tracking of any kind.
+All API keys are stored locally in IINA's sandboxed WebView and never shared. Automatic Lookup's TMDB cache stays in the plugin's own data folder on your Mac. No analytics or tracking of any kind.
 
 ## Requirements
 
