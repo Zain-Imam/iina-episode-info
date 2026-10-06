@@ -1198,10 +1198,43 @@ async function alExactTv(showId, season, episode) {
 }
 
 // seconds() is read late: the length can arrive after the file
+// Links that hide the name (TorBox, signed CDN links): ask the server, headers only
+async function alServerName(url) {
+  var out = "";
+  // A second try only if the server didn't answer at all; idle debrid files can be slow to wake up
+  for (var attempt = 0; attempt < 2 && !/^HTTP\//m.test(out); attempt++) {
+    try {
+      var r = await withTimeout(utils.exec("/usr/bin/curl", [
+        "-sS", "-L", "--connect-timeout", "5", "--max-time", "10", "--max-filesize", "1", "-r", "0-0", "-A", "libmpv",
+        "-o", "/dev/null", "-D", "-", "-w", "\n%{url_effective}\n", url
+      ]), 14000, "server name");
+      out = String((r && r.stdout) || "");
+    } catch (e) { out = ""; }
+  }
+  var lines = out.split(/\r?\n/);
+  var name = "";
+  lines.forEach(function(l) {
+    var m = /^content-disposition\s*:\s*(.+)$/i.exec(l);
+    if (m && alDispositionName(m[1])) name = alDispositionName(m[1]);
+  });
+  if (!name) {
+    var segs = alSplitLink(lines.filter(function(l) { return /^https?:\/\//i.test(l); }).pop() || "").segments;
+    if (segs.length && AL_VIDEO_EXT.test(segs[segs.length - 1])) name = segs[segs.length - 1];
+  }
+  return name.split(/[\\/]/).pop();
+}
+
 async function alLookup(h, seconds) {
   var link = alSplitLink(h.path || h.url || "");
   var readings = await alReadings(h, link);
   var ids = alIdsFromLink(link);
+  var lastSeg = link.segments.length ? link.segments[link.segments.length - 1] : "";
+  var webPage = h.mediaTitle && !h.metadataTitle && h.mediaTitle !== h.filename && h.mediaTitle !== lastSeg;
+  if (!ids.imdb && !readings.some(alUsable) && /^https?$/.test(link.scheme) && !alStremioPath(link) && !webPage) {
+    var served = "";
+    try { served = await alServerName(h.path || h.url); } catch (e) { served = ""; }
+    if (served) readings.push(alReading(served, [], "server"));
+  }
   if (ids.imdb) {
     var exact = await alFromImdb(ids, readings);
     if (exact) return exact;

@@ -122,7 +122,7 @@ The next time you open the same file or stream, your identification is restored 
 
 With **Automatic Lookup** on, a file you haven't identified yourself is looked up as soon as it opens, and the card is marked **Found automatically**. Pause, and the overlay is there.
 
-- **Where the name comes from** — the file name, the link, the folder it sits in (`Show/Season 1/01.mkv`), the title stored in the file, or, for Stremio torrents, Stremio's own streaming server on your Mac. Links that carry an IMDb id (such as Comet's) are matched exactly
+- **Where the name comes from** — the file name, the link, the folder it sits in (`Show/Season 1/01.mkv`), the title stored in the file, or, for Stremio torrents, Stremio's own streaming server on your Mac. Links that hide the name (TorBox and other debrid or cloud links) are named by the server itself, the way a download would be. Links that carry an IMDb id (such as Comet's) are matched exactly
 - **Only what it can confirm** — the title must match TMDB (or its original or alternative title), the year must agree, the episode must exist, and the video's length must fit. Shows or films that share a name with nothing to tell them apart, trailers, samples, clips, live streams and names with nothing in them all stay unidentified, and the search box is filled in with what it found
 - **Wrong?** — press **Not right? Search** on the card. That file won't be guessed again, and the pick you make instead is remembered as yours
 - **Your picks always win** — a file you identified yourself is never looked up, and matches never appear in Recent Picks
@@ -172,6 +172,7 @@ This plugin only contacts:
 - `api.introdb.app` / `api.theintrodb.org` / `api.skipdb.tv` — for intro and credit timings (only when Skip Intro is on)
 - `arm.haglund.dev` / `api.aniskip.com` — to look up anime openings and endings (only when Skip Intro is on)
 - `127.0.0.1` / `localhost` — Stremio's streaming server on your own Mac, to read the file name of a torrent you're streaming (only when Automatic Lookup is on). This never leaves your Mac
+- the server you're already streaming from — only when Automatic Lookup is on and the link doesn't show the file's name: one request for its name, headers only, nothing downloaded
 
 All API keys are stored locally in IINA's sandboxed WebView and never shared. Automatic Lookup's TMDB cache stays in the plugin's own data folder on your Mac. No analytics or tracking of any kind.
 
