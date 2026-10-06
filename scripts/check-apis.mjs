@@ -1,17 +1,6 @@
 #!/usr/bin/env node
-// Episode Info — API health check.
-//
-// Verifies that every service the plugin depends on still behaves the way
-// main.js and sidebar.html expect. Exits 0 when everything is intact, 1 when
-// something has broken.
-//
-//   node scripts/check-apis.mjs
-//
-// Keys (TMDB_API_KEY, OPENSUBTITLES_API_KEY, SUBDL_API_KEY, WYZIE_API_KEY) are
-// read from the environment or a local .env, and are optional: without them the
-// endpoints are still checked for being alive and enforcing auth, which is what
-// catches a moved or retired API. Never calls OpenSubtitles' /download, so it
-// cannot consume the free daily quota.
+// Episode Info API health check: does every service the plugin uses still behave as expected?
+// node scripts/check-apis.mjs   (keys from the environment or .env, all optional)
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -19,8 +8,7 @@ import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// Minimal .env reader so local runs need no dependencies. Real environment
-// variables always win, so CI secrets are never shadowed by a stray file.
+// Minimal .env reader; real environment variables win
 function loadDotEnv() {
   let raw;
   try { raw = readFileSync(join(ROOT, ".env"), "utf8"); } catch { return false; }
@@ -56,8 +44,7 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 const TV = { tmdb: 1399, imdb: "tt0944947", name: "Game of Thrones" };
 const MOVIE = { tmdb: 550, imdb: "tt0137523", name: "Fight Club" };
 
-// Same normalisation as stripTtAndZeros() in main.js. OpenSubtitles returns an
-// HTML error page for ids that keep their leading zeros, so this matters.
+// Same as stripTtAndZeros() in main.js
 const bareImdb = (id) => String(id).replace(/^tt/i, "").replace(/^0+/, "");
 
 const results = [];
@@ -67,7 +54,7 @@ const record = (name, status, detail) => {
   console.log(`${icon.padEnd(4)}  ${name.padEnd(46)}  ${detail}`);
 };
 
-// --- fetch with timeout + retries, so a blip does not raise a false alarm ----
+// fetch with a timeout and retries, so a blip isn't an alarm
 async function get(url, opts = {}) {
   let lastErr;
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
@@ -97,8 +84,7 @@ async function get(url, opts = {}) {
   throw lastErr;
 }
 
-// A check must fail twice to count. Third-party APIs occasionally return a
-// malformed 200, and a badge that cries wolf stops being read.
+// A check has to fail twice to count
 async function check(name, fn) {
   try {
     let out;
@@ -143,7 +129,7 @@ async function checkAllowlist() {
   return { detail: `${hosts.size} hosts called, all allow-listed` };
 }
 
-// 2. TMDB — the only hard requirement. Every route the plugin uses.
+// 2. TMDB, the only hard requirement
 async function checkTmdbRoutes() {
   const key = process.env.TMDB_API_KEY;
   const routes = [
@@ -179,7 +165,7 @@ async function checkTmdbShape() {
   need(hit, "no result carried media_type (sidebar.html branches on it)");
   need("id" in hit && ("name" in hit || "title" in hit), "result missing id/name/title used by the sidebar");
 
-  // main.js resolves IMDB ids from here; the whole subtitle cascade depends on it.
+  // main.js resolves IMDB ids from here
   const ext = await get(`https://api.themoviedb.org/3/tv/${TV.tmdb}/external_ids?api_key=${key}`);
   need(ext.status === 200, `external_ids HTTP ${ext.status}`);
   need(ext.json?.imdb_id === TV.imdb, `external_ids.imdb_id was "${ext.json?.imdb_id}", expected ${TV.imdb}`);
@@ -220,7 +206,7 @@ async function checkTmdbImages() {
 // 3. OpenSubtitles — search only, never /download (protects the free quota).
 async function checkOpenSubtitles() {
   const key = process.env.OPENSUBTITLES_API_KEY;
-  // The plugin's primary TV path — proves season/episode params are still honoured.
+  // The plugin's main TV path
   const url = `https://api.opensubtitles.com/api/v1/subtitles?parent_imdb_id=${bareImdb(TV.imdb)}`
     + "&season_number=1&episode_number=1&languages=en";
 
@@ -298,8 +284,7 @@ async function checkWyzie() {
   return { detail: `${arr.length} subtitles returned` };
 }
 
-// The plugin used to call sub.wyzie.ru. Warn if the .io host it now calls
-// ever starts redirecting somewhere else again.
+// The plugin used to call sub.wyzie.ru; warn if .io starts redirecting
 async function checkWyzieHost() {
   const res = await fetch("https://sub.wyzie.io/search?id=tt0944947", {
     redirect: "manual", headers: { "User-Agent": UA },
@@ -310,7 +295,7 @@ async function checkWyzieHost() {
   return { detail: `sub.wyzie.io answers directly (HTTP ${res.status}, no redirect)` };
 }
 
-// 6. Every host in Info.json resolves and answers. Catches a domain move
+// 6. Every allow-listed host answers (catches a domain move)
 async function checkAllowlistedHostsLive() {
   const info = JSON.parse(readFileSync(join(ROOT, "Info.json"), "utf8"));
   const dead = [];
@@ -326,11 +311,7 @@ async function checkAllowlistedHostsLive() {
   return { detail: `${(info.allowedDomains || []).length} allow-listed hosts reachable` };
 }
 
-
-// 6. Skip-intro sources. Each is optional, so this fails only when one is
-//    genuinely broken or none are usable. 401/403/429 means this runner is
-//    blocked — these sit behind Cloudflare, which challenges datacenter IPs
-//    while serving real users normally.
+// 7. Skip-intro sources; 401/403/429 means this runner is blocked, not broken
 async function checkSkipSources() {
   const qs = `imdb_id=${TV.imdb}&season=1&episode=1`;
 
@@ -372,9 +353,7 @@ async function checkSkipSources() {
   return { detail: `all ${ok.length} sources answering with the expected shape` };
 }
 
-// 7. Anime chain: IMDB -> MyAnimeList via ARM, then AniSkip. An outage here
-//    degrades anime lookups only, so blocked or unreachable warns rather
-//    than fails; a changed contract still fails.
+// 8. Anime chain: ARM, then AniSkip; an outage only warns
 async function checkAnimeChain() {
   const ANIME = { imdb: "tt2560140", name: "Attack on Titan", mal: 16498 };
   const soft = [], hard = [];

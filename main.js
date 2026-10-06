@@ -1,12 +1,9 @@
-// ============================================================
-// IINA Plugin: Episode Info  v1.3.1
-// ============================================================
+// IINA Plugin: Episode Info v1.3.1
 
 const { core, event, overlay, sidebar, utils, file, menu } = iina;
 
-// ── Helpers ──────────────────────────────────
-// Convert any thrown value / API error payload into a readable string.
-// Without this, sidebars could show "Error: [object Object]".
+// Helpers
+// Turn any thrown value or API error into a readable string
 function errStr(e) {
   if (e == null) return "Unknown error";
   if (typeof e === "string") return e;
@@ -21,8 +18,7 @@ function errStr(e) {
   return String(e);
 }
 
-// Quote a string for safe inclusion inside a /bin/sh -c command. Wraps the
-// arg in single quotes and escapes any embedded single quotes.
+// Quote a string for /bin/sh -c
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }
@@ -38,21 +34,12 @@ function withTimeout(p, ms, label) {
     })
   ]);
 }
-var HTTP_TIMEOUT_MS = 10000; // Per-call budget — sidebar enforces total budget
+var HTTP_TIMEOUT_MS = 10000; // per-call budget
 
-// OpenSubtitles REQUIRES a User-Agent header formatted as "AppName vX.Y.Z".
-// Without it, requests are silently slow-pathed (Cloudflare throttles them),
-// which causes timeouts for fresh content even when the result exists.
-// Per OS team forum post: "we now require to have User-Agent present in
-// requests, set it up to your application/script name with version".
+// OpenSubtitles needs a User-Agent like "AppName vX.Y.Z" or it throttles requests
 var OS_USER_AGENT = "EpisodeInfo v1.3.1";
 
-// ── Lazy IMDB ID resolver ───────────────────────────
-// Resolves BOTH the show-level (parent) and episode-level IMDB ids from TMDB.
-// The OpenSubtitles team supports two equivalent query patterns:
-//   1) ?parent_imdb_id={show}&season_number={s}&episode_number={e}
-//   2) ?imdb_id={episode_imdb}&languages=en   (no s/e)
-// We resolve both so we can try whichever works.
+// Lazy IMDB id resolver: show-level and episode-level ids from TMDB
 async function resolveImdbIds(d, tmdbKey) {
   if (!tmdbKey) return d;
   if (!d.tmdbId) return d;
@@ -71,7 +58,7 @@ async function resolveImdbIds(d, tmdbKey) {
         if (r.statusCode === 200 && body.imdb_id) d.imdbId = body.imdb_id;
       }
     } else {
-      // TV: fetch show-level + episode-level in parallel for speed
+      // TV: show and episode ids in parallel
       var calls = [];
       var needShow = !d.parentImdbId;
       var needEp   = !d.imdbId && d.season && d.episode;
@@ -111,18 +98,14 @@ async function resolveImdbIds(d, tmdbKey) {
   return d;
 }
 
-// Strip "tt" prefix and leading zeros — OpenSubtitles requires this per
-// their docs. Wyzie wants the "tt" prefix preserved, handled separately.
+// OpenSubtitles wants the "tt" prefix and leading zeros stripped
 function stripTtAndZeros(s) {
   if (!s) return null;
   var n = String(s).replace(/^tt/i, "").replace(/^0+/, "");
   return n || null;
 }
 
-// The canonical IMDB id, leading zeros intact. OpenSubtitles wants them
-// stripped and Wyzie wants the prefix without them, but the skip databases
-// key on the real id: tt0773262 returns Dexter's intro, tt773262 returns
-// nothing at all.
+// Canonical IMDB id, leading zeros kept: the skip databases need it exact
 function canonicalImdb(s) {
   if (!s) return null;
   var t = String(s).trim();
@@ -130,8 +113,7 @@ function canonicalImdb(s) {
   return /^tt/i.test(t) ? t : ("tt" + t);
 }
 
-// Plain "tt" prefix preserve (for Wyzie). Strips leading zeros from the
-// numeric part but keeps the prefix.
+// Keeps the "tt" prefix, strips leading zeros (for Wyzie)
 function withTtPrefix(s) {
   if (!s) return null;
   var n = stripTtAndZeros(s);
@@ -143,7 +125,7 @@ var currentEpisode     = null;
 var pauseTimer         = null;
 var overlayVisible     = false;
 var overlayBgOpacity   = 0.72;
-var overlayEnabled     = true;   // toggled from sidebar, persisted in sidebar's localStorage
+var overlayEnabled     = true; // set from the sidebar
 var overlayVerticalPos = 50;     // 0=top, 50=center, 100=bottom
 var pauseDelay         = 3;      // seconds before overlay shows on pause
 var overlayTheme       = "classic"; // classic | compact | poster
@@ -153,10 +135,9 @@ var skipVisible        = false;  // skip pill showing?
 var segments           = [];     // resolved skip segments for this file
 var activeSegment      = null;   // the one the pill is currently offering
 var timeWatcher        = null;   // id of the mpv.time-pos observer
-var tmdbKey            = "";     // pushed from the sidebar; needed to resolve IMDB ids
+var tmdbKey            = ""; // pushed from the sidebar
 var segmentCache       = {};     // "imdb:season:episode" -> segments
-var currentVideoUrl    = "";     // url of currently loaded file, sent to sidebar so it can
-                                 // restore per-URL TMDB info on re-play
+var currentVideoUrl    = ""; // url of the current file, for the sidebar's per-URL memory
 
 function log(msg) {
   iina.console.log("[EpInfo] " + msg);
@@ -193,17 +174,13 @@ function hideOverlay() {
   sidebar.postMessage("overlayShowing", { visible: false });
 }
 
-// The overlay WebView is shared by the info card and the skip pill.
-// Hide it only when neither of them wants to be on screen.
+// The info card and skip pill share the overlay; hide it only when neither is up
 function syncOverlay() {
   if (cardVisible || skipVisible) overlay.show();
   else overlay.hide();
 }
 
-
-// ── Skip intro / recap / credits ──────────────────────────────
-// Chapters in the file first, then the keyless databases in parallel.
-// Nothing ever seeks on its own; we only offer a button.
+// Skip intro / recap / credits: chapters first, then the databases. Never seeks on its own.
 
 var SEGMENT_LABELS = {
   intro:   "Skip Intro",
@@ -222,16 +199,14 @@ function validSegment(seg) {
 function pushSegment(list, kind, start, end, source, opts) {
   var seg = {
     kind: kind, start: Number(start), end: Number(end), source: source,
-    // A value derived from a null ("from the beginning" / "to the end") is a
-    // placeholder, not a measurement, and must not win the estimate.
+    // A value guessed from a null is a placeholder, not a measurement
     preciseStart: !(opts && opts.vagueStart),
     preciseEnd:   !(opts && opts.vagueEnd)
   };
   if (validSegment(seg)) list.push(seg);
 }
 
-// 1. Chapters — no network, no coverage problem.
-// Chapter has `start` but no `end`: a chapter ends where the next one begins.
+// 1. Chapters: each one ends where the next begins
 function segmentsFromChapters() {
   var out = [];
   try {
@@ -256,8 +231,7 @@ function segmentsFromChapters() {
   return out;
 }
 
-// 2. The three databases. All key on IMDB id + season + episode, which
-//    resolveImdbIds() has already produced for us.
+// 2. The databases, keyed on IMDB id + season + episode
 async function segmentsFromApis(imdbId, season, episode) {
   var out = [];
   if (!imdbId) return out;
@@ -285,8 +259,7 @@ async function segmentsFromApis(imdbId, season, episode) {
         if (b[k]) pushSegment(out, k, b[k].start_sec, b[k].end_sec, "introdb");
       });
     }),
-    // TheIntroDB — arrays, and start_ms/end_ms may be null meaning
-    // "from the beginning" / "to the end of the file".
+    // TheIntroDB: start_ms/end_ms may be null (from the start / to the end)
     grab("TheIntroDB", "https://api.theintrodb.org/v2/media?" + qs, function(b) {
       var dur = 0;
       try { dur = iina.mpv.getNumber("duration") || 0; } catch(e) {}
@@ -318,9 +291,7 @@ async function segmentsFromApis(imdbId, season, episode) {
   return out;
 }
 
-
-// AniSkip is keyed on MyAnimeList ids, so the IMDB id goes through ARM first.
-// ARM returns one entry per season, and an empty array for non-anime.
+// AniSkip uses MyAnimeList ids, so map the IMDB id through ARM first
 async function malIdFor(imdbTt, season) {
   try {
     var r = await withTimeout(
@@ -359,9 +330,7 @@ async function segmentsFromAniSkip(malId, episode) {
   return out;
 }
 
-// Merge the providers' answers into one segment per kind. Confidence scores
-// are not comparable across services, so segments covering the same stretch
-// are grouped and the group backed by the most databases wins.
+// One segment per kind; the stretch most databases agree on wins
 var SOURCE_ORDER = { chapters: 0, introdb: 1, theintrodb: 2, skipdb: 3 };
 
 // Overlap as a fraction of the shorter segment: 1 = identical, 0 = disjoint.
@@ -421,8 +390,7 @@ function mergeSegments(list) {
     });
     var win = groups[0];
 
-    // Estimate from measured values only, falling back to placeholders if
-    // that is genuinely all we have.
+    // Prefer measured values over placeholders
     var starts = win.filter(function(s) { return s.preciseStart; }).map(function(s) { return s.start; });
     var ends   = win.filter(function(s) { return s.preciseEnd;   }).map(function(s) { return s.end;   });
     if (!starts.length) starts = win.map(function(s) { return s.start; });
@@ -432,8 +400,7 @@ function mergeSegments(list) {
       kind:    kind,
       // Earliest start, so the button is up before the intro rolls.
       start:   Math.min.apply(null, starts),
-      // Median end: overshooting skips real content, so this is the number
-      // that has to be right, and the median resists one bad outlier.
+      // Median end: overshooting skips real content, and the median resists outliers
       end:     median(ends),
       sources: distinctSources(win),
       agreed:  distinctSources(win).length
@@ -455,8 +422,7 @@ async function resolveSegments(info, forceRefresh) {
     return;
   }
 
-  // Keyed on the SHOW's IMDB id. The episode-level id the subtitle search
-  // caches must never be used here — it returns nothing.
+  // Keyed on the show's IMDB id, not the episode's
   function showLevelId() {
     return canonicalImdb(info.isMovie ? info.imdbId : info.parentImdbId);
   }
@@ -475,16 +441,14 @@ async function resolveSegments(info, forceRefresh) {
     return;
   }
 
-  // Anime first when it applies: AniSkip has native anime ids and is more
-  // precise than the crowdsourced TV databases for openings and endings.
+  // Anime first: AniSkip is more precise for openings and endings
   var mal = await malIdFor(imdb, info.season);
   var anime = mal ? await segmentsFromAniSkip(mal, info.episode) : [];
 
   var remote = await segmentsFromApis(imdb, info.season, info.episode);
   var merged = mergeSegments(remote);
 
-  // A kind found by AniSkip wins; anything it did not cover falls back to the
-  // consensus answer from the TV databases.
+  // AniSkip wins per kind; the rest falls back to the TV databases
   if (anime.length) {
     var byKind = {};
     mergeSegments(anime).forEach(function(x) { byKind[x.kind] = x; });
@@ -530,8 +494,7 @@ function showSkip(seg) {
   skipVisible = true;
   overlay.postMessage("showSkip", { label: SEGMENT_LABELS[seg.kind] || "Skip" });
   syncOverlay();
-  // Only while the pill is up, so click-to-pause keeps working otherwise.
-  // The button also needs a `data-clickable` attribute — see overlay.html.
+  // Clickable only while the pill is up, so click-to-pause still works
   try { overlay.setClickable(true); } catch(e) { log("setClickable(true) failed: " + errStr(e)); }
 }
 
@@ -578,9 +541,7 @@ function hideSkip() {
   syncOverlay();
 }
 
-// Driven by the mpv property rather than a timer: a wall-clock timer keeps
-// running while paused and is wrong after any seek. The handler stays trivial
-// because it fires often.
+// Follows time-pos instead of a timer, which would drift while paused or after a seek
 function startTimeWatcher() {
   if (timeWatcher) return;
   timeWatcher = event.on("mpv.time-pos.changed", function() {
@@ -607,7 +568,7 @@ function stopTimeWatcher() {
   timeWatcher = null;
 }
 
-// ── Sidebar handlers ──────────────────────────────────────────
+// Sidebar handlers
 function registerSidebarHandlers() {
 
   sidebar.onMessage("episodeSelected", function(info) {
@@ -663,8 +624,7 @@ function registerSidebarHandlers() {
     overlay.postMessage("setTheme", { value: overlayTheme });
   });
 
-  // The sidebar's TMDB key — needed to resolve the IMDB id that every skip
-  // database is keyed on.
+  // The sidebar's TMDB key, needed for IMDB ids
   sidebar.onMessage("setTmdbKey", function(d) {
     tmdbKey = (d && d.key) ? String(d.key) : "";
   });
@@ -691,19 +651,14 @@ function registerSidebarHandlers() {
     log("Skip segments " + (skipEnabled ? "enabled" : "disabled"));
   });
 
-  // Sidebar finished its init and is ready to receive messages.
-  // Re-emit the current file's URL so it can do its URL→episode lookup
-  //. The original fileChanged from file-loaded may have
-  // arrived before sidebar handlers were registered.
+  // Sidebar is ready: resend the file in case the first fileChanged came too early
   sidebar.onMessage("sidebarReady", function() {
     if (currentVideoUrl) {
       sidebar.postMessage("fileChanged", { url: currentVideoUrl });
     }
   });
 
-  // Open external URL in the user's default browser.
-  // Used for the "View on opensubtitles.org" link — WebView <a target=_blank>
-  // doesn't work in IINA, so we round-trip through main.js.
+  // Open a URL in the browser; target=_blank doesn't work in IINA's web view
   sidebar.onMessage("openExternalUrl", function(d) {
     if (d && d.url) {
       try {
@@ -721,8 +676,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // Eager IMDB resolution — fires after episode selection so the
-  // opensubtitles.org website link populates without waiting for a search.
+  // Resolve IMDB ids early so the opensubtitles.org link is ready
   sidebar.onMessage("resolveImdbOnly", async function(d) {
     if (!d || !d.tmdbId) return;
     try {
@@ -732,11 +686,11 @@ function registerSidebarHandlers() {
         parentImdb: resolved.parentImdbId || null
       });
     } catch(e) {
-      // silently fail — link just won't populate, no harm
+      // fine if this fails, the link just won't show
     }
   });
 
-  // ── Wyzie Subs ──────────────────────────────────────────────
+  // Wyzie Subs
   sidebar.onMessage("searchWyzie", async function(d) {
     async function wzCall(idParam, includeSE) {
       var params = {
@@ -791,18 +745,12 @@ function registerSidebarHandlers() {
 
       var results = null;
 
-      // Wyzie cascade per their docs (sub.wyzie.io):
-      //   "Search by IMDB / TMDB ID — /search?id=tt3659388 or /search?id=286217"
-      // Plain TMDB id usually works fastest because Wyzie's internal cache
-      // is keyed on it. IMDB fallback handles the case where Wyzie failed
-      // its own internal TMDB→IMDB resolve (e.g. very new shows).
+      // Wyzie: TMDB id first (fastest), then IMDB id, then the whole show
 
-      // 1) TMDB id (existing behavior, fastest path for known content)
       if (d.tmdbId && !results) {
         results = await attempt("TMDB lookup", String(d.tmdbId), includeSE);
       }
 
-      // 2) IMDB fallback — resolve from TMDB if not already cached
       if (!results) {
         d = await resolveImdbIds(d, d.tmdbKey || "");
         var imdbForWyzie = withTtPrefix(d.parentImdbId || (d.isMovie ? d.imdbId : null));
@@ -811,8 +759,7 @@ function registerSidebarHandlers() {
         }
       }
 
-      // 3) Last-ditch: TMDB id without season/episode (whole-show)
-      //    Only relevant for TV when the user didn't already request broadShow.
+      // Whole show, for TV, unless that was already the request
       if (!results && !d.broadShow && !d.isMovie && d.tmdbId && includeSE) {
         results = await attempt("Whole-show fallback", String(d.tmdbId), false);
       }
@@ -841,11 +788,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // ── SubDL ──────────────────────────────────────────
-  // SubDL is a third subtitle source with a clean modern REST API and
-  // independent database from OpenSubtitles. Adds coverage for content
-  // that hasn't synced to OS.com yet (very recent episodes, regional
-  // releases). API docs: https://subdl.com/api-doc
+  // SubDL (https://subdl.com/api-doc), separate from OpenSubtitles
   sidebar.onMessage("searchSubdl", async function(d) {
     function progress(msg) {
       sidebar.postMessage("subdlSearchProgress", { text: msg });
@@ -888,7 +831,7 @@ function registerSidebarHandlers() {
 
       var results = null;
 
-      // Manual query: independent text search, no episode bias
+      // Manual query: plain text search
       if (d.manualQuery) {
         progress("Searching SubDL…");
         var mr = await sdCall({ film_name: d.manualQuery, languages: lang, subs_per_page: perPage });
@@ -897,7 +840,7 @@ function registerSidebarHandlers() {
         return;
       }
 
-      // Auto-search: resolve IMDB IDs first
+      // Auto search: resolve IMDB ids first
       progress("Resolving IMDB ID…");
       d = await resolveImdbIds(d, d.tmdbKey || "");
 
@@ -909,7 +852,7 @@ function registerSidebarHandlers() {
           results = await attempt("TMDB lookup", p);
         }
         if (!results && d.imdbId) {
-          // SubDL example response shows imdb_id with "tt" prefix; send same way
+          // SubDL takes imdb_id with the "tt" prefix
           results = await attempt("IMDB lookup", {
             imdb_id:   String(d.imdbId),
             type:      "movie",
@@ -941,7 +884,7 @@ function registerSidebarHandlers() {
             languages:      lang
           });
         }
-        // Fallback: full-season pack (often has subs even when episode-specific doesn't)
+        // Fallback: full-season pack
         if (!results && d.tmdbId) {
           results = await attempt("Full-season fallback", {
             tmdb_id:     String(d.tmdbId),
@@ -971,30 +914,28 @@ function registerSidebarHandlers() {
     }
   });
 
-  // SubDL gives ZIP downloads (raw .srt is "coming soon" per their docs).
-  // We download the ZIP via http.download into @tmp/, extract using macOS's
-  // built-in /usr/bin/unzip, find the subtitle inside, and load it.
+  // SubDL serves ZIPs: download to @tmp, unzip, load the subtitle
   sidebar.onMessage("loadSubdlSub", async function(d) {
     if (!d || !d.url) {
       sidebar.postMessage("subdlLoadResult", { success: false, error: "No URL" });
       return;
     }
 
-    // Tracks where in the pipeline we fail, for actionable error messages
+    // which step failed, for the error message
     var step = "starting";
 
     try {
-      // SubDL gives URLs like "/subtitle/3197651-3213944.zip" — prefix with host
+      // SubDL gives relative URLs like "/subtitle/123-456.zip"
       var url = d.url;
       if (url.charAt(0) === "/") url = "https://dl.subdl.com" + url;
       else if (!/^https?:\/\//i.test(url)) url = "https://dl.subdl.com/" + url;
 
-      // Unique stamp to avoid clashes between consecutive downloads
+      // so downloads don't clash
       var stamp = Date.now() + "-" + Math.floor(Math.random() * 1e6);
       var zipPath    = "@tmp/subdl-" + stamp + ".zip";
       var extractDir = "@tmp/subdl-" + stamp;
 
-      // ── Step 1: download ZIP ──────────────────────────────────
+      // 1. Download
       step = "download";
       var downloadedZipAbsPath = await withTimeout(
         iina.http.download(url, zipPath),
@@ -1007,7 +948,7 @@ function registerSidebarHandlers() {
       }
       if (!zipAbs) zipAbs = zipPath;
 
-      // ── Step 2: prepare extract dir ───────────────────────────
+      // 2. Extract dir
       step = "prepare-extract-dir";
       var extractAbs;
       if (utils && typeof utils.resolvePath === "function") {
@@ -1020,19 +961,14 @@ function registerSidebarHandlers() {
         throw new Error("mkdir failed: " + (mkdirResult.stderr || mkdirResult.stdout || "no output"));
       }
 
-      // ── Step 3: unzip ─────────────────────────────────────────
-      // macOS ships Info-ZIP UnZip 6.00, which DOES NOT support `-O` for
-      // filename encoding (that was added in 6.10+ on Linux). We use only
-      // the universally-supported flags here.
-      //   -j: junk paths (flatten so no nested dirs to recurse)
-      //   -o: overwrite without prompting
+      // 3. Unzip (macOS's UnZip 6.00 has no -O, so plain flags only)
       step = "unzip";
       var execResult = await utils.exec("/usr/bin/unzip", ["-j", "-o", String(zipAbs), "-d", String(extractAbs)]);
       if (execResult.status !== 0) {
         throw new Error("Unzip failed: " + (execResult.stderr || execResult.stdout || ("exit " + execResult.status)));
       }
 
-      // ── Step 4: find subtitle file (handle nested zips too) ───
+      // 4. Find the subtitle, nested zips too
       step = "find-subtitle";
       var subFile = null;
       var nestedZip = null;
@@ -1085,9 +1021,7 @@ function registerSidebarHandlers() {
         throw new Error("No subtitle (.srt/.ass/.ssa/.vtt) found inside the zip" + (fileNames.length ? " — got: " + fileNames.join(", ") : ""));
       }
 
-      // ── Step 5: validate the file is non-empty ────────────────
-      // Just a sanity check — if the file is 0 bytes the unzip silently
-      // failed, which mpv will translate into "Unsupported external subtitle".
+      // 5. An empty file means unzip quietly failed
       step = "validate";
       var statResult = await utils.exec("/usr/bin/stat", ["-f", "%z", String(subFile)]);
       var fileSize = parseInt((statResult.stdout || "0").trim(), 10);
@@ -1095,10 +1029,7 @@ function registerSidebarHandlers() {
         throw new Error("Extracted subtitle is empty or too small (" + fileSize + " bytes)");
       }
 
-      // ── Step 6: load via sub-add and force-select ─────────────
-      // mpv handles encoding (incl. BOMs and CP1252) on its own — no need
-      // to pre-process the file. This matches what OS/Wyzie do — they
-      // hand mpv a path/URL and let mpv parse it.
+      // 6. Load it; mpv handles the encoding
       step = "sub-add";
       var loaded = false;
       try {
@@ -1110,9 +1041,7 @@ function registerSidebarHandlers() {
 
       if (!loaded) {
         iina.mpv.command("sub-add", [subFile, "select"]);
-        // Explicitly switch sid to the just-added track in case the
-        // `select` flag didn't take (happens when there's already an
-        // active default track)
+        // Select the new track in case `select` didn't take
         try {
           var tracks = iina.mpv.getNative ? iina.mpv.getNative("track-list") : null;
           if (tracks && tracks.length) {
@@ -1141,7 +1070,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // ── OpenSubtitles ───────────────────────────────────────────
+  // OpenSubtitles
   sidebar.onMessage("osLogin", async function(d) {
     try {
       var resp = await withTimeout(
@@ -1169,7 +1098,7 @@ function registerSidebarHandlers() {
   });
 
   sidebar.onMessage("searchSubs", async function(d) {
-    // Helper to fire a single OS API call; returns {results, error, status}
+    // One API call: { results, error, status }
     async function osCall(params, hdrs) {
       try {
         var resp = await withTimeout(
@@ -1198,8 +1127,7 @@ function registerSidebarHandlers() {
       if (d.token) hdrs["Authorization"] = "Bearer " + d.token;
       var lang  = d.lang || "en";
 
-      // ── Manual query: completely independent ──────────────────
-      // No saved-episode params bleed in. Pure text search.
+      // Manual query: plain text search
       if (d.manualQuery) {
         progress("Searching OpenSubtitles…");
         var mq = await osCall({ query: d.manualQuery, languages: lang }, hdrs);
@@ -1208,7 +1136,7 @@ function registerSidebarHandlers() {
         return;
       }
 
-      // ── Auto-search: resolve show/movie IMDB id, then cascade ──
+      // Auto search: resolve IMDB ids, then try in order
       progress("Resolving IMDB ID…");
       d = await resolveImdbIds(d, d.tmdbKey || "");
 
@@ -1226,10 +1154,7 @@ function registerSidebarHandlers() {
       var results = null;
 
       if (d.isMovie) {
-        // MOVIE cascade:
-        //   1) imdb_id (with leading zeros stripped) — most precise
-        //   2) tmdb_id + year — TMDB fallback
-        //   3) text query + year + type=movie — last-ditch
+        // Movies: imdb_id, then tmdb_id + year, then a text query
         var movieImdb = stripTtAndZeros(d.imdbId);
         if (movieImdb && !results) {
           results = await attempt("IMDB lookup", { imdb_id: movieImdb, languages: lang });
@@ -1245,17 +1170,7 @@ function registerSidebarHandlers() {
           results = await attempt("Text search", qp);
         }
       } else {
-        // TV EPISODE cascade — per OpenSubtitles team's documented guidance:
-        //   "works best if possible to get the parent id and send the
-        //    episode & season numbers"
-        //   AND "to get the subtitles for a specific episode by imdbid,
-        //    you need to send the episode imdbid, and no episode_number
-        //    or season_number"
-        //   1) imdb_id={episode_imdb}  (no s/e, episode-level — sometimes works
-        //      when parent_imdb_id pattern doesn't, e.g. for very fresh content)
-        //   2) parent_imdb_id + season + episode  (recommended pattern)
-        //   3) parent_tmdb_id + season + episode  (TMDB fallback)
-        //   4) text query + season + episode + type=episode  (last-ditch)
+        // Episodes: parent imdb id + season/episode first, as OpenSubtitles recommends, then the fallbacks
         var epImdb = stripTtAndZeros(d.imdbId);
         if (epImdb && !results) {
           results = await attempt("Episode IMDB lookup", {
@@ -1357,11 +1272,10 @@ try {
   iina.console.log("[EpInfo] menu item failed: " + errStr(e));
 }
 
-// ── Events ────────────────────────────────────────────────────
+// Events
 event.on("iina.window-loaded", function() {
   overlay.loadFile("overlay.html");
-  // Handlers registered straight after loadFile do not survive the page
-  // load; the sidebar uses the same delay for the same reason.
+  // Handlers registered right after loadFile don't survive the page load
   setTimeout(registerOverlayHandlers, 500);
   setupSidebar();
 });
@@ -1373,7 +1287,7 @@ event.on("iina.file-loaded", function() {
   hideSkip();
   stopTimeWatcher();
   hideOverlay();
-  // Capture URL so sidebar can look it up in its URL→episode map
+  // The sidebar looks this URL up in its per-URL memory
   try { currentVideoUrl = core.status.url || ""; } catch(e) { currentVideoUrl = ""; }
   sidebar.postMessage("fileChanged", { url: currentVideoUrl });
   sidebar.postMessage("overlayStatus", { text: "Select an episode, then pause" });

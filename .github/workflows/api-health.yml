@@ -1,7 +1,6 @@
 name: API Health
 
-# Daily check that every API the plugin depends on still works, so a break
-# surfaces here instead of in a user's bug report.
+# Daily check that every API the plugin uses still works
 on:
   schedule:
     # Off-the-hour: GitHub queues scheduled jobs heavily at :00.
@@ -37,8 +36,7 @@ jobs:
       - name: Run API health check
         id: health
         env:
-          # Optional: without them the run still verifies every endpoint is
-          # alive and enforcing auth, but not the response shapes.
+          # Optional: without them only liveness and auth are checked
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OPENSUBTITLES_API_KEY: ${{ secrets.OPENSUBTITLES_API_KEY }}
           SUBDL_API_KEY: ${{ secrets.SUBDL_API_KEY }}

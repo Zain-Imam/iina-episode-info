@@ -14,8 +14,7 @@
     pointer-events:none;
     /* Match original font stack exactly */
     font-family:'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;
-    /* Fix the "outline" look on macOS — WebKit subpixel AA on dark backgrounds
-       causes text to look like it has a white stroke. Antialiased removes it. */
+    /* Antialiased, or text looks outlined on dark backgrounds */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -37,7 +36,7 @@
     display:flex; align-items:center; gap:40px;
   }
 
-  /* ── Text column ───────────────────────────────────────────── */
+  /* Text column */
   #text { flex:1; min-width:0; }
 
   .sn {
@@ -62,7 +61,7 @@
     -webkit-box-orient:vertical; overflow:hidden;
   }
 
-  /* ── Poster column ─────────────────────────────────────────── */
+  /* Poster column */
   #poster {
     flex-shrink:0; width:14vw; max-width:200px; min-width:110px;
     align-self:center;
@@ -73,8 +72,7 @@
     opacity:0.92;
   }
 
-  /* ── Theme: Compact ────────────────────────────────────────────
-     One line, no synopsis, no poster. Sits out of the way. */
+  /* Compact theme: one line, no synopsis or poster */
   #wrap[data-theme="compact"] #card { padding:14px 4%; gap:18px; }
   #wrap[data-theme="compact"] #poster,
   #wrap[data-theme="compact"] .ov { display:none; }
@@ -93,9 +91,7 @@
   }
   #wrap[data-theme="compact"] #text { display:block; }
 
-  /* ── Theme: Poster Focus ───────────────────────────────────────
-     A floating rounded card rather than a full-width bar, with the
-     poster leading on the left and a fuller synopsis. */
+  /* Poster Focus theme: a floating card led by the poster */
   #wrap[data-theme="poster"] #card {
     width:auto; max-width:72%; margin:0 auto;
     border-radius:16px; padding:22px 26px; gap:26px;
@@ -109,9 +105,7 @@
   #wrap[data-theme="poster"] .mt { margin-bottom:11px; }
   #wrap[data-theme="poster"] .ov { -webkit-line-clamp:4; font-size:15px; line-height:1.55; }
 
-  /* ── Skip pill ─────────────────────────────────────────────────
-     Independent of the info card: it must be able to show while the
-     card is hidden (during playback) and vice versa. */
+  /* Skip pill, independent of the info card */
   #skip-wrap {
     position:fixed; right:4vw; bottom:12vh;
     display:none;              /* shown by showSkip */
@@ -138,8 +132,7 @@
     transform:translateY(-1px);
   }
   #skip-btn .ic { font-size:13px; opacity:.85; }
-  /* Keeps the hit test resolving to the button that carries data-clickable
-     rather than to a span inside it. */
+  /* Keep hit tests on the button, not a span inside it */
   #skip-btn > * { pointer-events:none; }
   @keyframes skipIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 </style>
@@ -160,23 +153,21 @@
 </div>
 
 <div id="skip-wrap">
-  <!-- data-clickable is required: IINA only delivers mouse events to
-       elements carrying it, even after overlay.setClickable(true). -->
+  <!-- IINA only sends mouse events to elements with data-clickable -->
   <button id="skip-btn" data-clickable>
     <span class="ic">&#9654;&#9654;</span><span id="skip-label">Skip Intro</span>
   </button>
 </div>
 
 <script>
-// ── Helper: HTML-escape text going into innerHTML ─────────────
+// Escape text going into innerHTML
 function esc(s) {
   return String(s || "")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;")
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-// ── Apply vertical position ───────────────────
-// 0 = top, 50 = center, 100 = bottom. Snaps to edges within 5%.
+// Vertical position: 0 top, 50 center, 100 bottom; snaps near the edges
 function applyVerticalPos(v) {
   var wrap = document.getElementById("wrap");
   if (v <= 5) {
@@ -194,7 +185,7 @@ function applyVerticalPos(v) {
   }
 }
 
-// ── Receive episode data from main.js ─────────────────────────
+// Episode data from main.js
 iina.onMessage("showData", function(d) {
   // Update background shade first
   if (typeof d.bgOpacity === "number") {
@@ -206,13 +197,11 @@ iina.onMessage("showData", function(d) {
     applyVerticalPos(d.verticalPos);
   }
 
-  // Apply theme before the card is shown, so it never flashes Classic first
+  // Theme first, so it never flashes Classic
   if (d.theme) applyTheme(d.theme);
 
-  // Show title
   document.getElementById("show-name").textContent = d.showTitle || "";
 
-  // Episode title
   document.getElementById("ep-title").textContent = d.epTitle || "";
 
   // Meta row: code · airDate · ★ rating
@@ -222,10 +211,8 @@ iina.onMessage("showData", function(d) {
   if (d.rating)  parts.push('<span class="rat">&#9733; ' + esc(d.rating) + "</span>");
   document.getElementById("meta-row").innerHTML = parts.join("");
 
-  // Overview
   document.getElementById("overview").textContent = d.overview || "";
 
-  // Poster
   var posterEl = document.getElementById("poster");
   if (d.posterUrl) {
     posterEl.innerHTML = "<img src='" + esc(d.posterUrl) + "' />";
@@ -233,25 +220,24 @@ iina.onMessage("showData", function(d) {
     posterEl.innerHTML = "";
   }
 
-  // Make visible
   document.getElementById("wrap").style.display = "block";
 });
 
-// ── Live opacity update from sidebar slider ───────────────────
+// Live opacity from the sidebar
 iina.onMessage("setBgOpacity", function(d) {
   if (typeof d.value === "number") {
     document.documentElement.style.setProperty("--bg-opacity", d.value);
   }
 });
 
-// ── Live vertical position update ────────────
+// Live vertical position
 iina.onMessage("setVerticalPos", function(d) {
   if (typeof d.value === "number") {
     applyVerticalPos(d.value);
   }
 });
 
-// ── Overlay theme: classic | compact | poster ─────────────────
+// Theme: classic | compact | poster
 function applyTheme(name) {
   var ok = { classic: 1, compact: 1, poster: 1 };
   document.getElementById("wrap").setAttribute("data-theme", ok[name] ? name : "classic");
@@ -261,12 +247,12 @@ iina.onMessage("setTheme", function(d) {
   applyTheme(d && d.value);
 });
 
-// ── Hide only the info card; the skip pill is independent ─────
+// Hide only the info card; the skip pill is separate
 iina.onMessage("hideCard", function() {
   document.getElementById("wrap").style.display = "none";
 });
 
-// ── Skip pill ─────────────────────────────────────────────────
+// Skip pill
 iina.onMessage("showSkip", function(d) {
   document.getElementById("skip-label").textContent = (d && d.label) || "Skip Intro";
   document.getElementById("skip-wrap").style.display = "block";
@@ -281,9 +267,7 @@ iina.onMessage("hideSkip", function() {
   document.getElementById("skip-wrap").style.display = "none";
 });
 
-// A bound listener rather than an inline onclick: inline handlers can be
-// blocked by the web view's content policy. The label changes the moment the
-// click lands, which also makes a swallowed click easy to spot.
+// A bound listener, since inline onclick can be blocked by the content policy
 (function () {
   var btn = document.getElementById("skip-btn");
   if (!btn) return;
@@ -300,8 +284,7 @@ iina.onMessage("hideSkip", function() {
     }
   }
   btn.addEventListener("click", fire);
-  // Some hit-test paths deliver only the low-level events; the guard above
-  // stops click and mouseup both firing.
+  // Some hit tests only deliver the low-level events
   btn.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
   btn.addEventListener("mouseup", fire);
 })();
