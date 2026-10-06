@@ -1,4 +1,4 @@
-// IINA Plugin: Episode Info v1.3.1
+// IINA Plugin: Episode Info v1.3.2
 
 const { core, event, utils, file, menu } = iina;
 // Messages to the overlay and sidebar go through messageSafe()
@@ -64,7 +64,7 @@ function withTimeout(p, ms, label) {
 var HTTP_TIMEOUT_MS = 10000; // per-call budget
 
 // OpenSubtitles needs a User-Agent like "AppName vX.Y.Z" or it throttles requests
-var OS_USER_AGENT = "EpisodeInfo v1.3.1";
+var OS_USER_AGENT = "EpisodeInfo v1.3.2";
 
 // Lazy IMDB id resolver: show-level and episode-level ids from TMDB
 async function resolveImdbIds(d, tmdbKey) {

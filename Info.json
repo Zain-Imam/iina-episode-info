@@ -1,9 +1,9 @@
 {
   "name": "Episode Info",
   "identifier": "com.Zain-Imam.episodeinfo",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "ghRepo": "Zain-Imam/iina-episode-info",
-  "ghVersion": 6,
+  "ghVersion": 7,
   "author": {
     "name": "Zain Imam",
     "url": "https://github.com/Zain-Imam"
