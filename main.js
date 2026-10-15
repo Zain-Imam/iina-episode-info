@@ -1357,6 +1357,7 @@ function registerSidebarHandlers() {
 
   // ON/OFF toggle from sidebar
   sidebar.onMessage("setOverlayEnabled", function(d) {
+    sidebarSettingsIn = true;
     overlayEnabled = !!d.enabled;
     if (!overlayEnabled) hideOverlay();
     log("Overlay " + (overlayEnabled ? "enabled" : "disabled"));
@@ -1396,8 +1397,8 @@ function registerSidebarHandlers() {
     tmdbKey = (d && d.key) ? String(d.key) : "";
   });
 
-  // Automatic Lookup: only asked for when switched on
-  sidebar.onMessage("autoLookup", function(d) { autoLookup(d); });
+  // Automatic Lookup: only asked for when switched on; the request carries the key too
+  sidebar.onMessage("autoLookup", function(d) { if (d && d.key) tmdbKey = String(d.key); autoLookup(d); });
 
   // "Search again" in the sidebar: ignore the cache and look once more.
   sidebar.onMessage("refreshSkip", function() {
@@ -2021,8 +2022,19 @@ function setupSidebar() {
   if (!sidebarLoaded) {
     sidebar.loadFile("sidebar.html");
     sidebarLoaded = true;
-    setTimeout(registerSidebarHandlers, 500);
+    setTimeout(function() { registerSidebarHandlers(); askForSidebarSettings(5); }, 500);
   }
+}
+
+// The sidebar sends its settings once, the overlay switch first; on a busy start that can come before the handlers above, so ask again
+var sidebarSettingsIn = false;
+function askForSidebarSettings(tries) {
+  setTimeout(function() {
+    if (sidebarSettingsIn || tries <= 0) return;
+    log("Sidebar settings missed at startup, asking again");
+    sidebar.postMessage("resendSettings", {});
+    askForSidebarSettings(tries - 1);
+  }, 2000);
 }
 
 var overlayHandlersRegistered = false;

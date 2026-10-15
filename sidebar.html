@@ -862,7 +862,7 @@ function saveSelection(info) {
   var enabled = localStorage.getItem("epinfo_overlay_enabled") !== "false"; // default ON
   document.getElementById("overlay-toggle").checked = enabled;
   updateToggleVisual(enabled);
-  // Tell main.js once its handlers exist
+  // Sent first at startup; main.js asks again (resendSettings) if it never arrives
   setTimeout(function() {
     iina.postMessage("setOverlayEnabled", { enabled: enabled });
   }, 600);
@@ -952,7 +952,7 @@ function startAutoLookup(url) {
   if (hit && hit.info) { showAutoMatch(hit.info); return; }
   if (!TK) { autoStatus("Automatic Lookup needs your TMDB key — add it below."); return; }
   autoStatus("Looking it up…");
-  iina.postMessage("autoLookup", { url: url });
+  iina.postMessage("autoLookup", { url: url, key: TK });
 }
 
 function showAutoMatch(info) {
@@ -1428,6 +1428,21 @@ function renderRecents() {
     if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
   }, 800);
 })();
+// main.js asks again when it started listening after the settings above were sent
+iina.onMessage("resendSettings", function() {
+  iina.postMessage("setOverlayEnabled", { enabled: localStorage.getItem("epinfo_overlay_enabled") !== "false" });
+  var op = localStorage.getItem("epinfo_overlay_opacity");
+  if (op !== null) iina.postMessage("setOverlayOpacity", { value: parseFloat(op) });
+  var vp = localStorage.getItem("epinfo_overlay_vpos");
+  if (vp !== null) iina.postMessage("setOverlayVerticalPos", { value: parseFloat(vp) });
+  var pd = localStorage.getItem("epinfo_pause_delay");
+  var n = pd !== null ? parseFloat(pd) : 3;
+  if (!isNaN(n)) iina.postMessage("setPauseDelay", { value: n });
+  iina.postMessage("setTmdbKey", { key: localStorage.getItem("epinfo_tmdb_key") || "" });
+  iina.postMessage("setOverlayTheme", { value: localStorage.getItem("epinfo_overlay_theme") || "classic" });
+  iina.postMessage("setSkipEnabled", { enabled: localStorage.getItem("epinfo_skip_enabled") === "true" });
+  iina.postMessage("sidebarReady", {});
+});
 function doSetPauseDelay(val) {
   var n = parseFloat(val);
   if (isNaN(n) || n < 0.5) n = 0.5;
