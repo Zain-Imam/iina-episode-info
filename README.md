@@ -123,8 +123,9 @@ The next time you open the same file or stream, your identification is restored 
 With **Automatic Lookup** on, a file you haven't identified yourself is looked up as soon as it opens, and the card is marked **Found automatically**. Pause, and the overlay is there.
 
 - **Where the name comes from** — the file name, the link, the folder it sits in (`Show/Season 1/01.mkv`), the title stored in the file, or, for Stremio torrents, Stremio's own streaming server on your Mac. Links that hide the name (TorBox and other debrid or cloud links) are named by the server itself, the way a download would be. Links that carry an IMDb id (such as Comet's) are matched exactly
-- **Only what it can confirm** — the title must match TMDB (or its original or alternative title), the year must agree, the episode must exist, and the video's length must fit. Shows or films that share a name with nothing to tell them apart, trailers, samples, clips, live streams and names with nothing in them all stay unidentified, and the search box is filled in with what it found
-- **Wrong?** — press **Not right? Search** on the card. That file won't be guessed again, and the pick you make instead is remembered as yours
+- **Only what it can confirm** — the title must match TMDB (or its original or alternative title), the year must agree, the episode must exist, and the video's length must fit. A title on its own, with no year or episode, is only matched to a well-known film whose length is right and that no other film or show shares its name with. Shows or films that share a name with nothing to tell them apart, trailers, samples, clips, live streams and names with nothing in them all stay unidentified
+- **Not sure? One click** — it searches for what it found, so you only pick the right result. For a show, picking it opens the file's own episode
+- **Wrong?** — press **Not right? Search** on the card. That file won't be guessed again, the search runs for you, and the pick you make instead is remembered as yours
 - **Your picks always win** — a file you identified yourself is never looked up, and matches never appear in Recent Picks
 - **Quick on the next episode** — TMDB answers are kept on your Mac for a day to a week, so the rest of a season needs almost no requests
 

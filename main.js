@@ -967,7 +967,14 @@ async function alTmdb(path, params, ttlHours, trim) {
   if (hit && now - hit.t < (hit.v === null ? 24 : ttlHours) * 3600000) return hit.v;
   var p = { api_key: tmdbKey };
   Object.keys(params).forEach(function(k) { p[k] = params[k]; });
-  var r = await withTimeout(iina.http.get("https://api.themoviedb.org/3" + path, { params: p }), HTTP_TIMEOUT_MS, "TMDB");
+  var r;
+  try {
+    r = await withTimeout(iina.http.get("https://api.themoviedb.org/3" + path, { params: p }), HTTP_TIMEOUT_MS, "TMDB");
+  } catch (e) {
+    // IINA rejects a 4xx/5xx answer with the response itself
+    if (!e || !e.statusCode) throw e;
+    r = e;
+  }
   if (r.statusCode === 404) { alCache[key] = { t: now, v: null }; alCacheDirty = true; return null; }
   if (r.statusCode !== 200) throw new Error("TMDB answered " + r.statusCode);
   var v = trim(r.data || JSON.parse(r.text || "{}"));
@@ -1165,6 +1172,21 @@ async function alMatchMovie(p, seconds) {
   return alNotSure(why || "no matching film", p.title);
 }
 
+// Only IINA's title, no year or episode ("Backrooms"): a well-known film of the right length, and nothing else by that name
+async function alMatchBareTitle(p, seconds) {
+  var films = await alTitleCandidates("movie", await alSearch("movie", p.title, null), p.title);
+  var shows = await alTitleCandidates("tv", await alSearch("tv", p.title, null), p.title);
+  var fits = shows.map(function(s) { return { votes: s.votes, info: null }; });
+  for (var i = 0; i < Math.min(3, films.length); i++) {
+    var d = await alMovieDetails(films[i].id);
+    var ratio = d && d.runtime > 0 ? seconds / (d.runtime * 60) : 0;
+    if (ratio >= 0.9 && ratio <= 1.1) fits.push({ votes: d.votes, info: alMovieInfo(d) });
+  }
+  var top = fits.length === 1 ? fits[0] : fits.length ? alDominant(fits) : null;
+  if (!top || !top.info || top.votes < 100) return alNotSure("only the title “" + p.title + "” to go on, and that isn't enough", p.title);
+  return { info: top.info, query: p.title };
+}
+
 // An IMDb id in the link settles it
 async function alFromImdb(ids, readings) {
   var f = await alFind(ids.imdb);
@@ -1228,15 +1250,14 @@ async function alLookup(h, seconds) {
   var link = alSplitLink(h.path || h.url || "");
   var readings = await alReadings(h, link);
   var ids = alIdsFromLink(link);
-  var lastSeg = link.segments.length ? link.segments[link.segments.length - 1] : "";
-  var webPage = h.mediaTitle && !h.metadataTitle && h.mediaTitle !== h.filename && h.mediaTitle !== lastSeg;
-  if (!ids.imdb && !readings.some(alUsable) && /^https?$/.test(link.scheme) && !alStremioPath(link) && !webPage) {
+  if (!ids.imdb && !readings.some(alUsable) && /^https?$/.test(link.scheme) && !alStremioPath(link)) {
     var served = "";
     try { served = await alServerName(h.path || h.url); } catch (e) { served = ""; }
     if (served) readings.push(alReading(served, [], "server"));
   }
   if (ids.imdb) {
-    var exact = await alFromImdb(ids, readings);
+    var exact = null;
+    try { exact = await alFromImdb(ids, readings); } catch (e) { exact = null; }
     if (exact) return exact;
   }
 
@@ -1245,6 +1266,16 @@ async function alLookup(h, seconds) {
   var usable = readings.filter(alUsable);
   var primary = usable[0];
   if (!primary) {
+    var bare = readings.filter(function(rd) {
+      var q = rd.p;
+      return rd.weak && /title/.test(rd.source) && alTitleOk(q) && !q.dated && !q.lead && q.year == null && q.season == null && q.episode == null;
+    })[0];
+    if (bare && seconds() > 0) {
+      var b;
+      try { b = await alMatchBareTitle(bare.p, seconds()); } catch (e) { return alNotSure("couldn't ask TMDB (" + errStr(e) + ")", bare.p.title); }
+      if (b.info) b.from = bare.from;
+      return b;
+    }
     var named = readings.filter(function(rd) { return alTitleOk(rd.p); })[0];
     return alNotSure("there is no usable name", named ? named.p.title : "");
   }
@@ -1259,9 +1290,15 @@ async function alLookup(h, seconds) {
     }
   }
   var len = seconds();
-  if (!(len > 0)) return alNotSure("its length is unknown (a live stream?)", p.title);
-  var out = p.episode != null ? await alMatchTv(p, len) : await alMatchMovie(p, len);
+  var out;
+  if (!(len > 0)) out = alNotSure("its length is unknown (a live stream?)", p.title);
+  else {
+    try { out = p.episode != null ? await alMatchTv(p, len) : await alMatchMovie(p, len); }
+    catch (e) { out = alNotSure("couldn't ask TMDB (" + errStr(e) + ")", p.title); }
+  }
   if (out.info) out.from = primary.from;
+  // The sidebar's search can open this episode once the show is picked
+  else if (p.season != null && p.episode != null) { out.season = p.season; out.episode = p.episode; }
   return out;
 }
 
@@ -1286,6 +1323,7 @@ async function autoLookup(d) {
     reply.query = out.query || "";
     reply.reason = out.reason || "";
     if (out.info) reply.info.auto = { from: out.from || "" };
+    else if (out.season != null && out.episode != null) { reply.season = out.season; reply.episode = out.episode; }
   } catch (e) {
     reply.reason = "the lookup failed (" + errStr(e) + ")";
   }

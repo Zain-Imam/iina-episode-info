@@ -646,10 +646,13 @@ function setLoading(on) {
   document.getElementById("q").disabled  = on;
 }
 
-async function doSearch() {
+// auto: run by Automatic Lookup, so not one of the user's Recent Searches
+async function doSearch(auto) {
   var q = (document.getElementById("q").value || "").trim();
   if (!q) return;
-  pushSearch(q);
+  // The user's own search: they choose the season and episode, as always
+  if (auto !== true) { pushSearch(q); autoHint = null; }
+  var forUrl = currentVideoUrl;
   setLoading(true);
   document.getElementById("panel").innerHTML =
     '<div class="msg"><span class="sp"></span>Searching…</div>';
@@ -657,6 +660,7 @@ async function doSearch() {
     var r    = await fetch("https://api.themoviedb.org/3/search/multi?api_key=" + TK +
       "&query=" + encodeURIComponent(q) + "&include_adult=false");
     var data = await r.json();
+    if (auto === true && forUrl !== currentVideoUrl) { setLoading(false); return; }
     var list = (data.results||[])
       .filter(function(x){ return x.media_type==="tv"||x.media_type==="movie"; })
       .slice(0,8);
@@ -686,7 +690,7 @@ async function doSearch() {
     // for pickItemByIndex
     document.getElementById("panel")._searchCache = searchCache;
   } catch(e) {
-    document.getElementById("panel").innerHTML = '<div class="msg">Search failed.</div>';
+    if (!(auto === true && forUrl !== currentVideoUrl)) document.getElementById("panel").innerHTML = '<div class="msg">Search failed.</div>';
   }
   setLoading(false);
 }
@@ -712,6 +716,9 @@ function pickItem(item) {
   selShow   = item;
   selSeason = null;
   episodeCache = [];
+  // Used once, for a pick from the search Automatic Lookup ran
+  var h = autoHint && autoHint.url === currentVideoUrl ? autoHint : null;
+  autoHint = null;
 
   if (item.media_type === "movie") {
     document.getElementById("panel").innerHTML =
@@ -740,6 +747,11 @@ function pickItem(item) {
     .then(function(show){
       selShow._name    = show.name;
       selShow._seasons = (show.seasons||[]).filter(function(s){return s.season_number>0;});
+      // The file's own season and episode, when Automatic Lookup read them but wasn't sure of the show
+      if (h && selShow._seasons.some(function(s){ return s.season_number === h.season; })) {
+        selSeason = h.season;
+        selShow._wantEp = h.episode;
+      }
       renderSeasons();
     }).catch(function(){
       document.getElementById("panel").innerHTML='<div class="msg">Failed to load seasons.</div>';
@@ -760,7 +772,7 @@ function renderSeasons() {
   if (selSeason!==null) renderEps(selSeason);
 }
 
-function pickSeason(n){ selSeason=n; renderSeasons(); }
+function pickSeason(n){ selSeason=n; if (selShow) selShow._wantEp = null; renderSeasons(); }
 
 function renderEps(sNum) {
   var el = document.getElementById("ep");
@@ -774,6 +786,13 @@ function renderEps(sNum) {
         ? "https://image.tmdb.org/t/p/w500" + s.poster_path
         : (selShow && selShow.poster_path ? "https://image.tmdb.org/t/p/w500" + selShow.poster_path : "");
       episodeCache = s.episodes || [];
+      var want = selShow && selShow._wantEp;
+      if (want != null && selSeason === sNum) {
+        selShow._wantEp = null;
+        for (var w = 0; w < episodeCache.length; w++) {
+          if (episodeCache[w].episode_number === want) { pickEp(w); return; }
+        }
+      }
 
       var pills = "";
       episodeCache.forEach(function(ep, i){
@@ -866,6 +885,7 @@ function doToggleOverlay(enabled) {
 // Matches go in epinfo_auto_map, never in the user's own picks or Recent Picks
 var AUTO_MAP_CAP = 300;
 var autoShown = false;   // the saved card is showing a match, not a pick
+var autoHint = null;     // {url, season, episode} the file's name gave, for when a show is picked
 
 function autoLookupOn() {
   try { return localStorage.getItem("epinfo_auto_lookup") === "true"; } catch(e) { return false; }
@@ -949,9 +969,12 @@ iina.onMessage("autoLookupResult", function(d) {
     rememberAuto(d.url, { info: d.info });
     showAutoMatch(d.info);
   } else {
-    autoStatus("Not sure what this is — search below.", d.reason);
     var q = document.getElementById("q");
-    if (q && !q.value && d.query) q.value = d.query;
+    // Search for what it found, so the right one is a click away; not when the user has typed their own
+    var searching = !!(q && !q.value && d.query);
+    autoHint = searching && d.season != null && d.episode != null ? { url: d.url, season: d.season, episode: d.episode } : null;
+    autoStatus(searching ? "Not sure what this is — pick it below." : "Not sure what this is — search below.", d.reason);
+    if (searching) { q.value = d.query; doSearch(true); }
   }
 });
 
@@ -963,10 +986,13 @@ function doAutoWrong() {
   autoShown = false;
   showUnidentified();
   autoStatus("Search below for the right one.");
+  // Wrong show, same episode: picking the right show opens it
+  autoHint = info && !info.isMovie && info.season != null && info.episode != null
+    ? { url: currentVideoUrl, season: info.season, episode: info.episode } : null;
   var q = document.getElementById("q");
   if (q) {
     q.value = info ? ((info.isMovie ? info.epTitle : info.showTitle) || "") : "";
-    q.focus();
+    if (q.value) doSearch(true); else q.focus();
   }
 }
 
@@ -977,6 +1003,7 @@ iina.onMessage("overlayStatus", function(d){
 // File changed: restore the pick for a URL we know, otherwise clear
 iina.onMessage("fileChanged", function(d){
   currentVideoUrl = (d && d.url) || "";
+  autoHint = null;
 
   // Reset search panel state regardless
   document.getElementById("q").value = "";
