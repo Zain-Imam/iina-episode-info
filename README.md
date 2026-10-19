@@ -41,8 +41,8 @@
 - **TMDB-powered episode & movie info** — search any title, see show name, episode title, code, air date, rating, synopsis, and poster
 - **Auto-overlay on pause** — info card appears when you pause, vanishes when you resume
 - **Automatic Lookup** *(experimental)* — identifies what's playing from its file name or link, so the card is ready without searching. Works with local files, Stremio, debrid links and most online links. When it isn't sure, it shows nothing rather than guess
-- **Three overlay themes** — Classic (full-width card), Compact (a single unobtrusive line), or Poster Focus (a floating card led by the poster)
-- **Customizable overlay** — adjustable shade, vertical position (top / center / bottom), and configurable pause delay
+- **Four overlay themes** — Classic (full-width card), Compact (a single unobtrusive line), Poster Focus (a floating card led by the poster), or Glass (a floating card in three styles: Frosted and Colorful fill it with the episode's own artwork, blurred; Clear is see-through)
+- **Customizable overlay** — adjustable width, poster side, shade, vertical position (top / center / bottom) and pause delay, plus the cast and the next episode on the card if you want them
 - **Skip intro, recap and credits** *(experimental)* — a button appears over the video when there is something to skip. No account or API key needed, but coverage depends on community-contributed data
 - **Recent picks & recent searches** — reuse a recent show in one click, or re-run a recent search without retyping it
 - **Per-URL memory** — once you identify a video, the show/episode is remembered against that file's URL. Re-open it later, even after restarting IINA, and your pick is restored automatically. Each URL keeps its own remembered identification
@@ -124,13 +124,14 @@ With **Automatic Lookup** on, a file you haven't identified yourself is looked u
 
 - **Where the name comes from** — the file name, the link, the folder it sits in (`Show/Season 1/01.mkv`), the title stored in the file, or, for Stremio torrents, Stremio's own streaming server on your Mac. Links that hide the name (TorBox and other debrid or cloud links) are named by the server itself, the way a download would be. Links that carry an IMDb id (such as Comet's) are matched exactly
 - **Only what it can confirm** — the title must match TMDB (or its original or alternative title), the year must agree, the episode must exist, and the video's length must fit. A title on its own, with no year or episode, is only matched to a well-known film whose length is right and that no other film or show shares its name with. Shows or films that share a name with nothing to tell them apart, trailers, samples, clips, live streams and names with nothing in them all stay unidentified
+- **Episode titles and anime numbers** — `Breaking Bad - Felina` is found when the show has exactly one episode by that name, and anime numbered from the first episode (`One Piece - 1089`) when the number is past the end of any single season
 - **Not sure? One click** — it searches for what it found, so you only pick the right result. For a show, picking it opens the file's own episode
 - **Wrong?** — press **Not right? Search** on the card. That file won't be guessed again, the search runs for you, and the pick you make instead is remembered as yours
 - **Your picks always win** — a file you identified yourself is never looked up, and matches never appear in Recent Picks
 - **Quick on the next episode** — TMDB answers are kept on your Mac for a day to a week, so the rest of a season needs almost no requests
 
 > [!NOTE]
-> **This feature is experimental.** A file name is only a hint, so it won't recognise everything: badly named files, absolute anime numbering (`One Piece - 1089`) and links that carry no name at all are left for you to search. It is built to show nothing rather than the wrong episode.
+> **This feature is experimental.** A file name is only a hint, so it won't recognise everything: badly named files, anime numbers that could belong to more than one season (`Naruto Shippuden - 15`) and links that carry no name at all are left for you to search. It is built to show nothing rather than the wrong episode.
 
 ### Skipping intros and credits
 
@@ -157,8 +158,11 @@ The sidebar has controls for:
 - **Show Overlay on Pause** — toggle the overlay entirely on/off
 - **Overlay Shade** — adjust background darkness (0–100%)
 - **Overlay Position** — anchor the card to the top, center, or bottom of the video
-- **Theme** — Classic, Compact, or Poster Focus
+- **Theme** — Classic, Compact, Poster Focus or Glass. Glass has a **Style**: **Frosted** (the poster, blurred and dark), **Colorful** (blurred and bright) or **Clear** (see-through)
+- **Width** — anything from 40% of the window to full width, for every theme. **Auto** goes back to the theme's own width
+- **Poster** — **Left** or **Right** for the poster. **Auto** keeps each theme's own side: right in Classic, left in Poster Focus and Glass
 - **Pause Delay** — change how many seconds to wait after pausing before the overlay appears
+- **On the card** — **Cast** shows up to four of the cast with their photos, **Up next** the next episode and when it airs. Both are off until you turn them on, and Compact, being a single line, shows neither
 - **Clear selection** — forget the saved identification for the current video so you can re-identify it
 
 All of these settings persist across IINA restarts.
@@ -166,7 +170,7 @@ All of these settings persist across IINA restarts.
 ## Privacy
 
 This plugin only contacts:
-- `api.themoviedb.org` / `image.tmdb.org` — for episode/movie info and posters
+- `api.themoviedb.org` / `image.tmdb.org` — for episode/movie info, posters and cast photos
 - `api.opensubtitles.com` — for subtitle search/download (optional)
 - `api.subdl.com` / `dl.subdl.com` — for subtitle search/download (optional)
 - `sub.wyzie.ru` / `sub.wyzie.io` — for subtitle search (optional)
