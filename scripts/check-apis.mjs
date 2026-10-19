@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Episode Info API health check: does every service the plugin uses still behave as expected?
+// Episode Info API health check: is every service the plugin uses still working?
 // node scripts/check-apis.mjs   (keys from the environment or .env, all optional)
 
 import { readFileSync } from "node:fs";
@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// Minimal .env reader; real environment variables win
+// Minimal .env reader, real environment variables win
 function loadDotEnv() {
   let raw;
   try { raw = readFileSync(join(ROOT, ".env"), "utf8"); } catch { return false; }
@@ -33,14 +33,14 @@ function loadDotEnv() {
 
 const INFO = JSON.parse(readFileSync(join(ROOT, "Info.json"), "utf8"));
 
-// Matches the plugin's own User-Agent; OpenSubtitles rejects requests without one.
+// Same User-Agent as the plugin, OpenSubtitles rejects requests without one
 const UA = `EpisodeInfo v${INFO.version}`;
 const TIMEOUT_MS = 20000;
 const RETRIES = 3;
-// Upstream hiccups that say nothing about the plugin being broken.
+// Upstream hiccups, not the plugin's fault
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
-// Stable, heavily-subtitled fixtures.
+// Well-known titles with plenty of subtitles
 const TV = { tmdb: 1399, imdb: "tt0944947", name: "Game of Thrones" };
 const MOVIE = { tmdb: 550, imdb: "tt0137523", name: "Fight Club" };
 
@@ -73,7 +73,7 @@ async function get(url, opts = {}) {
       }
       const text = await res.text();
       let json = null;
-      try { json = JSON.parse(text); } catch { /* not json — fine */ }
+      try { json = JSON.parse(text); } catch { /* not json */ }
       return { status: res.status, json, text, headers: res.headers };
     } catch (err) {
       clearTimeout(timer);
@@ -104,7 +104,7 @@ async function check(name, fn) {
 
 const need = (cond, msg) => { if (!cond) throw new Error(msg); };
 
-// 1. Static check — every URL in the code is allow-listed in Info.json.
+// 1. Every URL in the code is allow-listed in Info.json
 async function checkAllowlist() {
   const info = JSON.parse(readFileSync(join(ROOT, "Info.json"), "utf8"));
   const allowed = new Set(info.allowedDomains || []);
@@ -114,7 +114,7 @@ async function checkAllowlist() {
   for (const file of sources) {
     let src;
     try { src = readFileSync(join(ROOT, file), "utf8"); } catch { continue; }
-    // Only hosts the plugin itself calls through iina.http / fetch.
+    // Only hosts the plugin calls through iina.http / fetch
     for (const m of src.matchAll(/(?:iina\.http\.\w+|fetch)\(\s*["'`](https:\/\/[^"'`\/]+)/g)) {
       hosts.add(new URL(m[1]).hostname);
     }
@@ -146,7 +146,7 @@ async function checkTmdbRoutes() {
   for (const [path, params] of routes) {
     const qs = new URLSearchParams({ ...params, api_key: key || "INVALID_KEY_HEALTHCHECK" });
     const r = await get(`https://api.themoviedb.org${path}?${qs}`);
-    // With a key: 200. Without: 401 + TMDB's status_code 7 proves the route lives.
+    // With a key 200; without, 401 with status_code 7 still proves the route works
     const ok = key ? r.status === 200 : r.status === 401 && r.json?.status_code === 7;
     if (!ok) bad.push(`${path} -> HTTP ${r.status}${r.json?.status_message ? ` (${r.json.status_message})` : ""}`);
   }
@@ -165,12 +165,12 @@ async function checkTmdbShape() {
   need(hit, "no result carried media_type (sidebar.html branches on it)");
   need("id" in hit && ("name" in hit || "title" in hit), "result missing id/name/title used by the sidebar");
 
-  // main.js resolves IMDB ids from here
+  // main.js gets IMDb ids from here
   const ext = await get(`https://api.themoviedb.org/3/tv/${TV.tmdb}/external_ids?api_key=${key}`);
   need(ext.status === 200, `external_ids HTTP ${ext.status}`);
   need(ext.json?.imdb_id === TV.imdb, `external_ids.imdb_id was "${ext.json?.imdb_id}", expected ${TV.imdb}`);
 
-  // Season episodes feed the episode picker.
+  // The episode picker
   const season = await get(`https://api.themoviedb.org/3/tv/${TV.tmdb}/season/1?api_key=${key}`);
   need(season.status === 200, `season HTTP ${season.status}`);
   need(Array.isArray(season.json?.episodes) && season.json.episodes.length > 0, "season.episodes missing");
@@ -183,7 +183,7 @@ async function checkTmdbShape() {
 async function checkTmdbImages() {
   const key = process.env.TMDB_API_KEY;
   if (!key) {
-    // Still confirm the image CDN is serving at all.
+    // Image CDN is up
     const r = await get("https://image.tmdb.org/t/p/w92/");
     need(r.status < 500, `image.tmdb.org returned HTTP ${r.status}`);
     return { skip: "no TMDB_API_KEY — CDN reachable, poster not fetched" };
@@ -203,16 +203,15 @@ async function checkTmdbImages() {
   return { detail: `${base}w92 serving images` };
 }
 
-// 3. OpenSubtitles — search only, never /download (protects the free quota).
+// 3. OpenSubtitles: search only, never /download (free quota)
 async function checkOpenSubtitles() {
   const key = process.env.OPENSUBTITLES_API_KEY;
-  // The plugin's main TV path
   const url = `https://api.opensubtitles.com/api/v1/subtitles?parent_imdb_id=${bareImdb(TV.imdb)}`
     + "&season_number=1&episode_number=1&languages=en";
 
   if (!key) {
     const r = await get(url);
-    // 401/403 both prove the route exists and is enforcing auth as documented.
+    // 401/403 means the route exists and checks auth
     need([401, 403].includes(r.status), `expected 401/403 without a key, got HTTP ${r.status}`);
     need(r.json !== null, "error response was not JSON — service may have changed");
     return { skip: `no OPENSUBTITLES_API_KEY — endpoint alive (HTTP ${r.status}, JSON error)` };
@@ -255,7 +254,7 @@ async function checkSubdl() {
   return { detail: `${r.json.subtitles.length} subtitles returned, status:true` };
 }
 
-// SubDL hands back zip archives from a separate host — make sure it is up.
+// SubDL's zips come from a separate host
 async function checkSubdlCdn() {
   const r = await get("https://dl.subdl.com/");
   need(r.status < 500, `dl.subdl.com returned HTTP ${r.status}`);
@@ -284,7 +283,7 @@ async function checkWyzie() {
   return { detail: `${arr.length} subtitles returned` };
 }
 
-// The plugin used to call sub.wyzie.ru; warn if .io starts redirecting
+// The plugin used to call sub.wyzie.ru, warn if .io starts redirecting
 async function checkWyzieHost() {
   const res = await fetch("https://sub.wyzie.io/search?id=tt0944947", {
     redirect: "manual", headers: { "User-Agent": UA },
@@ -298,7 +297,7 @@ async function checkWyzieHost() {
 // 6. Every allow-listed host answers (catches a domain move)
 async function checkAllowlistedHostsLive() {
   const info = JSON.parse(readFileSync(join(ROOT, "Info.json"), "utf8"));
-  // Stremio's server on the user's own Mac, not on the internet
+  // Stremio's server on the user's Mac
   const hosts = (info.allowedDomains || []).filter((h) => h !== "127.0.0.1" && h !== "localhost");
   const dead = [];
   for (const host of hosts) {
@@ -313,14 +312,14 @@ async function checkAllowlistedHostsLive() {
   return { detail: `${hosts.length} allow-listed hosts reachable` };
 }
 
-// 7. Skip-intro sources; 401/403/429 means this runner is blocked, not broken
+// 7. Skip-intro sources; 401/403/429 means this runner is blocked, not that they're down
 async function checkSkipSources() {
   const qs = `imdb_id=${TV.imdb}&season=1&episode=1`;
 
   const sources = [
     { name: "IntroDB", url: `https://api.introdb.app/segments?${qs}`,
       valid: (j) => j && "intro" in j, shape: "`intro` key" },
-    { name: "TheIntroDB", url: `https://api.theintrodb.org/v2/media?${qs}`,
+    { name: "TheIntroDB", url: `https://api.theintrodb.org/v4/media?${qs}`,
       valid: (j) => j && (!("intro" in j) || Array.isArray(j.intro)), shape: "`intro` array" },
     { name: "SkipDB", url: `https://api.skipdb.tv/api/segments?${qs}`,
       valid: (j) => j && typeof j.segments === "object", shape: "`segments` object" },
@@ -389,7 +388,7 @@ async function checkAnimeChain() {
   return { detail: `ARM maps ${ANIME.name} to MAL ${mal}, AniSkip answering` };
 }
 
-// Run everything, then write the summary.
+// Run everything, then the summary
 const fromDotEnv = loadDotEnv();
 
 const KEY_NAMES = ["TMDB_API_KEY", "OPENSUBTITLES_API_KEY", "SUBDL_API_KEY", "WYZIE_API_KEY"];

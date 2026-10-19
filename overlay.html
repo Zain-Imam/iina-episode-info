@@ -12,20 +12,20 @@
     background:transparent;
     overflow:hidden;
     pointer-events:none;
-    /* Match original font stack exactly */
+    /* Same font stack as the sidebar */
     font-family:'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;
-    /* Antialiased, or text looks outlined on dark backgrounds */
+    /* Without this text looks outlined on dark backgrounds */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
-  /* top default; JS overrides via showData / setVerticalPos */
+  /* set by showData / setVerticalPos */
   #wrap {
     position:fixed; top:50%; left:0; right:0;
     transform:translateY(-50%);
     pointer-events:none;
-    display:none; /* hidden until showData arrives */
+    display:none;
   }
 
   /* Full-width card */
@@ -91,7 +91,7 @@
   }
   #wrap[data-theme="compact"] #text { display:block; }
 
-  /* Poster Focus theme: a floating card led by the poster */
+  /* Poster theme: floating card, poster first */
   #wrap[data-theme="poster"] #card {
     width:auto; max-width:72%; margin:0 auto;
     border-radius:16px; padding:22px 26px; gap:26px;
@@ -105,11 +105,104 @@
   #wrap[data-theme="poster"] .mt { margin-bottom:11px; }
   #wrap[data-theme="poster"] .ov { -webkit-line-clamp:4; font-size:15px; line-height:1.55; }
 
-  /* Skip pill, independent of the info card */
+  /* Glass theme: floating card filled with the episode's own poster, blurred */
+  #wrap[data-theme="glass"] #card {
+    width:auto; max-width:76%; margin:0 auto;
+    border-radius:22px; padding:24px 28px; gap:28px;
+    flex-direction:row-reverse;
+    background:transparent; isolation:isolate;
+    border:1px solid rgba(255,255,255,0.2);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.32), 0 24px 70px rgba(0,0,0,0.42);
+  }
+  /* IINA's overlay can't blur the video behind it, so the frost comes from the poster; Clear has none */
+  #art { display:none; }
+  #wrap[data-theme="glass"] #art {
+    display:block; position:absolute; inset:0; border-radius:inherit; overflow:hidden; z-index:-2;
+  }
+  #wrap[data-theme="glass"][data-glass="clear"] #art { display:none; }
+  #wrap[data-theme="glass"] #art::before {
+    content:""; position:absolute; inset:-60px;
+    background:var(--art, none) center / cover no-repeat;
+    -webkit-filter:blur(40px) saturate(150%) brightness(78%); filter:blur(40px) saturate(150%) brightness(78%);
+  }
+  /* Colorful: brighter artwork under a lighter tint */
+  #wrap[data-theme="glass"][data-glass="colorful"] #art::before {
+    -webkit-filter:blur(34px) saturate(220%) brightness(92%); filter:blur(34px) saturate(220%) brightness(92%);
+  }
+  #wrap[data-theme="glass"][data-glass="colorful"] #card::before { background:rgba(12,14,20,0.62); }
+  /* Tint follows the Shade slider */
+  #wrap[data-theme="glass"] #card::before {
+    content:""; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+    background:rgba(12,14,20,0.84); opacity:var(--bg-opacity);
+  }
+  #wrap[data-theme="glass"] #card::after {
+    content:""; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+    background:linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 38%, rgba(255,255,255,0) 62%);
+  }
+  #wrap[data-theme="glass"] #poster { width:15vw; max-width:170px; min-width:110px; }
+  #wrap[data-theme="glass"] #poster img {
+    border-radius:12px; opacity:1;
+    box-shadow:0 10px 34px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.16);
+  }
+  #wrap[data-theme="glass"] #text { text-shadow:0 1px 3px rgba(0,0,0,0.6); }
+  #wrap[data-theme="glass"] .sn { color:rgba(255,255,255,0.62); margin-bottom:8px; }
+  #wrap[data-theme="glass"] .et { font-size:30px; white-space:normal; margin-bottom:8px; }
+  #wrap[data-theme="glass"] .mt { color:rgba(255,255,255,0.74); margin-bottom:10px; }
+  #wrap[data-theme="glass"] .ov { color:rgba(255,255,255,0.84); -webkit-line-clamp:3; font-size:15px; line-height:1.55; }
+  /* Over a light poster the grey labels faded, so near-white text with a firmer shadow */
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) #text { text-shadow:0 1px 3px rgba(0,0,0,0.75), 0 0 10px rgba(0,0,0,0.3); }
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) .sn,
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) .mt,
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) .person i,
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) .next .lbl { color:rgba(255,255,255,0.88); }
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) .ov,
+  #wrap[data-theme="glass"]:not([data-glass="clear"]) .next { color:rgba(255,255,255,0.96); }
+
+  /* Cast and Up next; never on Compact */
+  #extra { display:none; margin-top:16px; }
+  #wrap[data-extra] #extra { display:block; }
+  #wrap[data-theme="compact"] #extra { display:none; }
+  /* One row of as many as fit; the rest wrap out of sight rather than squeeze */
+  .cast {
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    grid-auto-rows:36px; row-gap:40px; column-gap:14px;
+    max-height:38px; padding:1px; overflow:hidden;
+  }
+  .person { display:flex; align-items:center; gap:9px; min-width:0; }
+  .person img {
+    width:34px; height:34px; border-radius:50%; object-fit:cover; flex-shrink:0;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.35);
+  }
+  .person span { min-width:0; }
+  .person b, .person i {
+    display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .person b { font-size:12.5px; font-weight:600; color:#fff; }
+  .person i { font-style:normal; font-size:11.5px; color:rgba(255,255,255,0.62); }
+  .next {
+    display:inline-flex; align-items:center; gap:9px; margin-top:14px;
+    padding:6px 13px; border-radius:999px;
+    background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.16);
+    font-size:12.5px; color:rgba(255,255,255,0.88);
+  }
+  .next .lbl { font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,0.56); }
+
+  /* Card width from the sidebar; unset keeps the theme's own */
+  #wrap[data-width] #card { width:var(--card-width); max-width:none; margin-left:auto; margin-right:auto; }
+  #wrap[data-width][data-theme="classic"] #card,
+  #wrap[data-width][data-theme="compact"] #card { border-radius:14px; }
+  #wrap[data-width][data-full] #card { border-radius:0; }
+  #wrap[data-width][data-full][data-theme="glass"] #card { border-left:0; border-right:0; }
+
+  /* Poster side from the sidebar; unset keeps the theme's own */
+  #wrap[data-poster="left"]:not([data-theme="compact"]) #card { flex-direction:row-reverse; }
+  #wrap[data-poster="right"]:not([data-theme="compact"]) #card { flex-direction:row; }
+
+  /* Skip pill, separate from the card */
   #skip-wrap {
     position:fixed; right:4vw; bottom:12vh;
-    display:none;              /* shown by showSkip */
-    pointer-events:none;       /* only the button itself is clickable */
+    display:none;
+    pointer-events:none;
   }
   #skip-btn {
     pointer-events:auto;
@@ -132,7 +225,7 @@
     transform:translateY(-1px);
   }
   #skip-btn .ic { font-size:13px; opacity:.85; }
-  /* Keep hit tests on the button, not a span inside it */
+  /* Hit tests go to the button, not the span inside */
   #skip-btn > * { pointer-events:none; }
   @keyframes skipIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 </style>
@@ -141,11 +234,16 @@
 
 <div id="wrap">
   <div id="card">
+    <div id="art"></div>
     <div id="text">
       <div class="sn" id="show-name"></div>
       <div class="et" id="ep-title"></div>
       <div class="mt" id="meta-row"></div>
       <div class="ov"  id="overview"></div>
+      <div id="extra">
+        <div class="cast" id="cast"></div>
+        <div class="next" id="next"></div>
+      </div>
     </div>
 
     <div id="poster"></div>
@@ -160,14 +258,13 @@
 </div>
 
 <script>
-// Escape text going into innerHTML
 function esc(s) {
   return String(s || "")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;")
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-// Vertical position: 0 top, 50 center, 100 bottom; snaps near the edges
+// 0 top, 50 center, 100 bottom; snaps near the edges
 function applyVerticalPos(v) {
   var wrap = document.getElementById("wrap");
   if (v <= 5) {
@@ -185,26 +282,29 @@ function applyVerticalPos(v) {
   }
 }
 
-// Episode data from main.js
 iina.onMessage("showData", function(d) {
-  // Update background shade first
   if (typeof d.bgOpacity === "number") {
     document.documentElement.style.setProperty("--bg-opacity", d.bgOpacity);
   }
 
-  // Apply vertical position
   if (typeof d.verticalPos === "number") {
     applyVerticalPos(d.verticalPos);
   }
 
-  // Theme first, so it never flashes Classic
+  // Theme first so it never flashes Classic
   if (d.theme) applyTheme(d.theme);
+  applyWidth(d.width);
+  applyPosterSide(d.poster);
+  applyGlassStyle(d.glass);
+  // Glass's frost; a link with a quote in it is dropped rather than breaking the CSS
+  var art = String(d.posterUrl || "");
+  document.getElementById("card").style.setProperty("--art", art && art.indexOf('"') < 0 ? 'url("' + art + '")' : "none");
 
   document.getElementById("show-name").textContent = d.showTitle || "";
 
   document.getElementById("ep-title").textContent = d.epTitle || "";
 
-  // Meta row: code · airDate · ★ rating
+  // code, air date, rating
   var parts = [];
   if (d.code)    parts.push("<span>" + esc(d.code) + "</span>");
   if (d.airDate) parts.push("<span>" + esc(d.airDate) + "</span>");
@@ -220,26 +320,37 @@ iina.onMessage("showData", function(d) {
     posterEl.innerHTML = "";
   }
 
+  // Cast (up to 4) and Up next
+  document.getElementById("cast").innerHTML = (d.cast || []).slice(0, 4).map(function(c) {
+    // "Mark Grayson / Invincible (voice)" -> "Mark Grayson"
+    var role = String(c.role || "").replace(/\s*\((voice|uncredited|archive footage)\)/gi, "").split(" / ")[0];
+    return "<div class='person'>" + (c.photo ? "<img src='" + esc(c.photo) + "' />" : "") +
+      "<span><b>" + esc(c.name) + "</b><i>" + esc(role) + "</i></span></div>";
+  }).join("");
+  var nx = d.next, nextEl = document.getElementById("next");
+  nextEl.innerHTML = nx ? "<span class='lbl'>Up next</span>" + esc(nx.code) + " · " + esc(nx.title) + (nx.date ? " · " + esc(nx.date) : "") : "";
+  nextEl.style.display = nx ? "" : "none";
+  if ((d.cast && d.cast.length) || nx) document.getElementById("wrap").setAttribute("data-extra", "");
+  else document.getElementById("wrap").removeAttribute("data-extra");
+
   document.getElementById("wrap").style.display = "block";
 });
 
-// Live opacity from the sidebar
 iina.onMessage("setBgOpacity", function(d) {
   if (typeof d.value === "number") {
     document.documentElement.style.setProperty("--bg-opacity", d.value);
   }
 });
 
-// Live vertical position
 iina.onMessage("setVerticalPos", function(d) {
   if (typeof d.value === "number") {
     applyVerticalPos(d.value);
   }
 });
 
-// Theme: classic | compact | poster
+// classic | compact | poster | glass
 function applyTheme(name) {
-  var ok = { classic: 1, compact: 1, poster: 1 };
+  var ok = { classic: 1, compact: 1, poster: 1, glass: 1 };
   document.getElementById("wrap").setAttribute("data-theme", ok[name] ? name : "classic");
 }
 
@@ -247,7 +358,35 @@ iina.onMessage("setTheme", function(d) {
   applyTheme(d && d.value);
 });
 
-// Hide only the info card; the skip pill is separate
+// Width 40-100 (% of the window), or nothing for the theme's own
+function applyWidth(v) {
+  var wrap = document.getElementById("wrap");
+  if (typeof v === "number" && v >= 40 && v <= 100) {
+    wrap.setAttribute("data-width", "");
+    wrap.style.setProperty("--card-width", v + "%");
+    if (v >= 100) wrap.setAttribute("data-full", ""); else wrap.removeAttribute("data-full");
+  } else {
+    wrap.removeAttribute("data-width");
+    wrap.removeAttribute("data-full");
+  }
+}
+
+iina.onMessage("setWidth", function(d) { applyWidth(d && d.value); });
+
+function applyPosterSide(v) {
+  var wrap = document.getElementById("wrap");
+  if (v === "left" || v === "right") wrap.setAttribute("data-poster", v); else wrap.removeAttribute("data-poster");
+}
+iina.onMessage("setPosterSide", function(d) { applyPosterSide(d && d.value); });
+
+// Frosted unless the sidebar says Clear or Colorful
+function applyGlassStyle(v) {
+  var wrap = document.getElementById("wrap");
+  if (v === "clear" || v === "colorful") wrap.setAttribute("data-glass", v); else wrap.removeAttribute("data-glass");
+}
+iina.onMessage("setGlassStyle", function(d) { applyGlassStyle(d && d.value); });
+
+// Only the card, the skip pill stays
 iina.onMessage("hideCard", function() {
   document.getElementById("wrap").style.display = "none";
 });
@@ -256,7 +395,7 @@ iina.onMessage("hideCard", function() {
 iina.onMessage("showSkip", function(d) {
   document.getElementById("skip-label").textContent = (d && d.label) || "Skip Intro";
   document.getElementById("skip-wrap").style.display = "block";
-  // Replay the entry animation on each appearance
+  // Replay the entry animation
   var b = document.getElementById("skip-btn");
   b.style.animation = "none";
   void b.offsetWidth;
@@ -267,14 +406,14 @@ iina.onMessage("hideSkip", function() {
   document.getElementById("skip-wrap").style.display = "none";
 });
 
-// A bound listener, since inline onclick can be blocked by the content policy
+// Not inline onclick, the content policy can block it
 (function () {
   var btn = document.getElementById("skip-btn");
   if (!btn) return;
   var sent = false;
   function fire(ev) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-    if (sent) return;              // click and mouseup must not both send
+    if (sent) return;  // click and mouseup must not both send
     sent = true;
     setTimeout(function () { sent = false; }, 800);
     var lab = document.getElementById("skip-label");
@@ -284,7 +423,7 @@ iina.onMessage("hideSkip", function() {
     }
   }
   btn.addEventListener("click", fire);
-  // Some hit tests only deliver the low-level events
+  // Some hit tests only get the low-level events
   btn.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
   btn.addEventListener("mouseup", fire);
 })();

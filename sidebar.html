@@ -109,12 +109,30 @@
   @keyframes sp { to { transform: rotate(360deg); } }
   hr.div { border: none; border-top: 1px solid rgba(255,255,255,.09); margin: 10px 0; }
 
-  /* Shared by the shade and position sliders */
+  /* Shade and position sliders */
   .op-wrap { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 7px; padding: 8px 10px; margin-bottom: 10px; }
   .op-row  { display: flex; align-items: center; gap: 8px; }
   #opacity-slider, #vpos-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; }
   #opacity-slider::-webkit-slider-thumb, #vpos-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #e50914; cursor: pointer; }
   #opacity-val, #vpos-val { font-size: 11px; color: rgba(255,255,255,.45); min-width: 50px; text-align: right; }
+  #width-slider { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; outline: none; cursor: pointer; min-width: 0; }
+  #width-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #e50914; cursor: pointer; }
+  #width-val { font-size: 11px; color: rgba(255,255,255,.45); min-width: 30px; text-align: right; }
+  .op-auto { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: rgba(255,255,255,.7);
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 5px; cursor: pointer; font-family: inherit; }
+  .op-auto:hover { background: rgba(255,255,255,.14); color: #fff; }
+  .op-name { font-size: 12px; font-weight: 600; color: #fff; flex: 0 0 62px; }
+  .op-note { flex: 1; font-size: 10px; color: rgba(255,255,255,.35); min-width: 0; }
+  .op-sub { font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.3);
+    margin: 10px 0 7px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.07); }
+  /* Small switches */
+  .sw { position: relative; display: inline-block; width: 34px; height: 20px; flex-shrink: 0; cursor: pointer; }
+  .sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .sw-t { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.2); border-radius: 20px; transition: background .2s; }
+  .sw-k { position: absolute; height: 14px; width: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: left .2s; }
+  .sw input:checked + .sw-t { background: #e50914; }
+  .sw input:checked + .sw-t .sw-k { left: 17px; }
+  .sw input:focus-visible + .sw-t { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; }
 
   /* Dismiss button */
   #ov-dismiss { display: none; margin-bottom: 8px; }
@@ -219,7 +237,7 @@
   <button onclick="iina.postMessage('overlayCloseRequest',{})">&#10005;&nbsp; Dismiss overlay</button>
 </div>
 
-<!-- Hidden, but main.js's overlayStatus messages still land here -->
+<!-- Hidden; overlayStatus messages land here -->
 <div id="ov-status-box" style="display:none;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:8px 12px;margin-bottom:12px;"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px">Overlay Status</div><div id="ov-st" style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.4">Waiting...</div></div>
 
 <!-- Saved card -->
@@ -337,7 +355,7 @@
 
   <div id="os-results"><div class="msg" style="padding:6px 0">Set API Key above first.</div></div>
 
-  <!-- opensubtitles.org link, once we have an IMDB id -->
+  <!-- opensubtitles.org link, once there's an IMDb id -->
   <div id="os-dotorg-row" style="display:none;margin-top:8px">
     <button id="os-dotorg-link" onclick="openOsDotOrg()"
        style="display:block;width:100%;text-align:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.75);padding:7px;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit">
@@ -418,7 +436,7 @@
   </div>
   <button id="wz-search-btn" class="sub-btn2" onclick="doWzSearch()" disabled>Search Wyzie Subs</button>
 
-  <!-- Whole-show search: Wyzie has no text search, so this drops the season/episode -->
+  <!-- Whole show: Wyzie has no text search -->
   <div id="wz-broad-row" style="margin-top:6px;display:none">
     <button id="wz-broad-btn" onclick="doWzSearch(true)"
             style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.6);font-size:11px;padding:6px;border-radius:6px;cursor:pointer">Search whole show (no episode filter)</button>
@@ -459,9 +477,40 @@
 <hr class="div" />
 
 <!-- Overlay appearance -->
-
+<div class="sub-hd">Overlay</div>
 <div class="op-wrap">
   <div class="op-row">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Theme</div>
+    <div id="theme-pills" style="display:flex;gap:4px;flex:1">
+      <button class="thm" data-t="classic" onclick="doSetTheme('classic')">Classic</button>
+      <button class="thm" data-t="compact" onclick="doSetTheme('compact')">Compact</button>
+      <button class="thm" data-t="poster"  onclick="doSetTheme('poster')">Poster</button>
+      <button class="thm" data-t="glass"   onclick="doSetTheme('glass')">Glass</button>
+    </div>
+  </div>
+  <div class="op-row" id="glass-row" style="margin-top:7px;display:none">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Style</div>
+    <div id="glass-pills" style="display:flex;gap:4px;flex:1">
+      <button class="thm" data-g="clear"    onclick="doSetGlassStyle('clear')" title="See-through, no artwork">Clear</button>
+      <button class="thm" data-g="frosted"  onclick="doSetGlassStyle('frosted')" title="The poster, blurred and dark">Frosted</button>
+      <button class="thm" data-g="colorful" onclick="doSetGlassStyle('colorful')" title="The poster, blurred and bright">Colorful</button>
+    </div>
+  </div>
+  <div class="op-row" style="margin-top:7px">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Width</div>
+    <input type="range" id="width-slider" min="40" max="100" value="100" oninput="doSetWidth(this.value)" />
+    <span id="width-val">Auto</span>
+    <button id="width-auto" class="op-auto" onclick="doResetWidth()" title="Back to the theme's own width" style="display:none">Auto</button>
+  </div>
+  <div class="op-row" id="poster-row" style="margin-top:7px">
+    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Poster</div>
+    <div id="poster-pills" style="display:flex;gap:4px;flex:1">
+      <button class="thm" data-p="auto"  onclick="doSetPosterSide('auto')" title="The theme's own side">Auto</button>
+      <button class="thm" data-p="left"  onclick="doSetPosterSide('left')">Left</button>
+      <button class="thm" data-p="right" onclick="doSetPosterSide('right')">Right</button>
+    </div>
+  </div>
+  <div class="op-row" style="margin-top:7px">
     <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Shade</div>
     <input type="range" id="opacity-slider" min="0" max="100" value="72" oninput="doSetOpacity(this.value)" />
     <span id="opacity-val">72%</span>
@@ -472,14 +521,6 @@
     <span id="vpos-val">Center</span>
   </div>
   <div class="op-row" style="margin-top:7px">
-    <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Theme</div>
-    <div id="theme-pills" style="display:flex;gap:4px;flex:1">
-      <button class="thm" data-t="classic" onclick="doSetTheme('classic')">Classic</button>
-      <button class="thm" data-t="compact" onclick="doSetTheme('compact')">Compact</button>
-      <button class="thm" data-t="poster"  onclick="doSetTheme('poster')">Poster</button>
-    </div>
-  </div>
-  <div class="op-row" style="margin-top:7px">
     <div class="sl" style="margin:0;flex:0 0 62px;white-space:nowrap">Delay</div>
     <div style="flex:1"></div>
     <input type="number" id="pause-delay-input" min="0.5" max="30" step="0.5" value="3"
@@ -487,6 +528,18 @@
       style="width:52px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:4px 6px;color:#fff;font-size:12px;font-family:inherit;outline:none;text-align:center" />
     <span style="font-size:11px;color:rgba(255,255,255,.45)">sec</span>
   </div>
+  <div class="op-sub">On the card</div>
+  <div class="op-row">
+    <div class="op-name">Cast</div>
+    <div class="op-note">Up to four of the cast, with photos</div>
+    <label class="sw"><input type="checkbox" id="cast-toggle" onchange="doToggleCast(this.checked)" /><span class="sw-t"><span class="sw-k"></span></span></label>
+  </div>
+  <div class="op-row" style="margin-top:7px">
+    <div class="op-name">Up next</div>
+    <div class="op-note">The next episode and its date</div>
+    <label class="sw"><input type="checkbox" id="next-toggle" onchange="doToggleNext(this.checked)" /><span class="sw-t"><span class="sw-k"></span></span></label>
+  </div>
+  <div class="op-note" style="margin-top:6px">Compact is a single line, so it shows neither.</div>
 </div>
 
 <script>
@@ -497,11 +550,11 @@ var selShow      = null;
 var selSeason    = null;
 var descExpanded = false;
 
-// Episodes live in an array; onclick passes the index
+// onclick passes the index
 var episodeCache = [];
 var seasonPosterUrl = "";
 
-// Per-URL memory: each video URL keeps its own pick
+// Each video URL keeps its own pick
 var currentVideoUrl = "";
 function loadUrlMap() {
   try { return JSON.parse(localStorage.getItem("epinfo_url_map") || "{}"); }
@@ -525,7 +578,7 @@ function clearCurrentUrlFromMap() {
   }
 }
 
-// Save the IMDB ids main.js resolved back into the selection
+// Keep the IMDb ids main.js found
 function cacheResolvedImdbIds(resolved) {
   if (!resolved || (!resolved.imdb && !resolved.parentImdb)) return;
   var saved = null;
@@ -547,7 +600,7 @@ function cacheResolvedImdbIds(resolved) {
   }
 }
 
-// main.js resolved the IMDB ids: cache them, update the .org link
+// IMDb ids from main.js: cache them, update the .org link
 iina.onMessage("imdbResolved", function(d) {
   if (!d) return;
   cacheResolvedImdbIds({ imdb: d.imdb, parentImdb: d.parentImdb });
@@ -560,7 +613,7 @@ function resetPanel() {
 
 // Saved card
 function showSaved(info) {
-  // Any pick replaces a lookup match; showAutoMatch() adds the line back for its own
+  // A pick replaces a lookup match; showAutoMatch() adds the line back
   autoShown = false;
   document.getElementById("s-auto").style.display = "none";
   autoStatus("");
@@ -602,7 +655,6 @@ function showSaved(info) {
   var wzBroad = document.getElementById("wz-broad-row");
   if (wzBroad) wzBroad.style.display = info.isMovie ? "none" : "block";
 
-  // Update opensubtitles.org website link
   if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
 }
 
@@ -620,7 +672,7 @@ function toggleDesc() {
 }
 
 function doClear() {
-  // Clearing a match means "not this one": don't guess it again
+  // Clearing a match means "not this one", so don't guess it again
   if (autoShown) { rememberAuto(currentVideoUrl, { rejected: true }); autoShown = false; }
   // also forget this URL's saved pick
   clearCurrentUrlFromMap();
@@ -635,9 +687,10 @@ function doClear() {
   if (typeof resetWz === "function") { resetWz(); document.getElementById("wz-search-btn").disabled = true; }
   if (typeof resetOs === "function") { resetOs(); var osBtn = document.getElementById("os-search-btn"); if (osBtn) osBtn.disabled = true; }
   if (typeof resetSd === "function") { resetSd(); var sdBtn = document.getElementById("sd-search-btn"); if (sdBtn) sdBtn.disabled = true; }
-  // Hide opensubtitles.org website link
   var orgRow = document.getElementById("os-dotorg-row");
   if (orgRow) orgRow.style.display = "none";
+  var mq = document.getElementById("os-manual-q");
+  if (mq) mq.value = "";
 }
 
 // Search
@@ -646,11 +699,11 @@ function setLoading(on) {
   document.getElementById("q").disabled  = on;
 }
 
-// auto: run by Automatic Lookup, so not one of the user's Recent Searches
+// auto: started by Automatic Lookup, so not saved to Recent Searches
 async function doSearch(auto) {
   var q = (document.getElementById("q").value || "").trim();
   if (!q) return;
-  // The user's own search: they choose the season and episode, as always
+  // The user's own search: they pick the season and episode
   if (auto !== true) { pushSearch(q); autoHint = null; }
   var forUrl = currentVideoUrl;
   setLoading(true);
@@ -670,7 +723,7 @@ async function doSearch(auto) {
       setLoading(false); return;
     }
 
-    // Results live in an array; onclick passes the index
+    // onclick passes the index
     var searchCache = list;
     var html = "";
     list.forEach(function(item, i) {
@@ -687,7 +740,6 @@ async function doSearch(auto) {
     });
     document.getElementById("panel").innerHTML = html;
 
-    // for pickItemByIndex
     document.getElementById("panel")._searchCache = searchCache;
   } catch(e) {
     if (!(auto === true && forUrl !== currentVideoUrl)) document.getElementById("panel").innerHTML = '<div class="msg">Search failed.</div>';
@@ -695,7 +747,6 @@ async function doSearch(auto) {
   setLoading(false);
 }
 
-// Escape text going into innerHTML
 function htmlEsc(s) {
   return String(s||"")
     .replace(/&/g,"&amp;")
@@ -716,7 +767,7 @@ function pickItem(item) {
   selShow   = item;
   selSeason = null;
   episodeCache = [];
-  // Used once, for a pick from the search Automatic Lookup ran
+  // Used once, for a pick from Automatic Lookup's search
   var h = autoHint && autoHint.url === currentVideoUrl ? autoHint : null;
   autoHint = null;
 
@@ -747,7 +798,7 @@ function pickItem(item) {
     .then(function(show){
       selShow._name    = show.name;
       selShow._seasons = (show.seasons||[]).filter(function(s){return s.season_number>0;});
-      // The file's own season and episode, when Automatic Lookup read them but wasn't sure of the show
+      // The file's season and episode, when the lookup wasn't sure of the show
       if (h && selShow._seasons.some(function(s){ return s.season_number === h.season; })) {
         selSeason = h.season;
         selShow._wantEp = h.episode;
@@ -781,7 +832,7 @@ function renderEps(sNum) {
   fetch("https://api.themoviedb.org/3/tv/"+selShow.id+"/season/"+sNum+"?api_key="+TK)
     .then(function(r){return r.json();})
     .then(function(s){
-      // Store season poster for overlay
+      // Season poster for the overlay
       seasonPosterUrl = s.poster_path
         ? "https://image.tmdb.org/t/p/w500" + s.poster_path
         : (selShow && selShow.poster_path ? "https://image.tmdb.org/t/p/w500" + selShow.poster_path : "");
@@ -825,8 +876,8 @@ function pickEp(idx) {
 
 function saveSelection(info) {
   try{localStorage.setItem("epinfo_ep", JSON.stringify(info));}catch(e){}
-  saveCurrentUrlInfo(info); // remember per-URL
-  pushRecent(info); // and Recent Picks
+  saveCurrentUrlInfo(info);
+  pushRecent(info);
   showSaved(info);
   iina.postMessage("episodeSelected", info);
   document.getElementById("panel").innerHTML =
@@ -836,16 +887,14 @@ function saveSelection(info) {
   episodeCache = [];
   if (WZK) document.getElementById("wz-search-btn").disabled = false;
   if (typeof resetWz === "function") resetWz();
-  // enable OS search button if key is set
   var osBtn = document.getElementById("os-search-btn");
   if (osBtn && localStorage.getItem("epinfo_osub_key")) osBtn.disabled = false;
   if (typeof resetOs === "function") resetOs();
-  // enable SubDL search button if key is set
   var sdBtn = document.getElementById("sd-search-btn");
   if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
   if (typeof resetSd === "function") resetSd();
 
-  // Resolve IMDB ids early for the opensubtitles.org link
+  // IMDb ids early, for the opensubtitles.org link
   if (TK && info.tmdbId && !info.imdbId && !info.parentImdbId) {
     iina.postMessage("resolveImdbOnly", {
       tmdbKey: TK,
@@ -859,10 +908,10 @@ function saveSelection(info) {
 
 // Overlay on/off
 (function() {
-  var enabled = localStorage.getItem("epinfo_overlay_enabled") !== "false"; // default ON
+  var enabled = localStorage.getItem("epinfo_overlay_enabled") !== "false"; // on by default
   document.getElementById("overlay-toggle").checked = enabled;
   updateToggleVisual(enabled);
-  // Sent first at startup; main.js asks again (resendSettings) if it never arrives
+  // Sent first; main.js asks again (resendSettings) if it never arrives
   setTimeout(function() {
     iina.postMessage("setOverlayEnabled", { enabled: enabled });
   }, 600);
@@ -881,11 +930,11 @@ function doToggleOverlay(enabled) {
   iina.postMessage("setOverlayEnabled", { enabled: enabled });
 }
 
-// Automatic Lookup (experimental)
-// Matches go in epinfo_auto_map, never in the user's own picks or Recent Picks
+// Automatic Lookup
+// Matches go in epinfo_auto_map, never in the user's picks or Recent Picks
 var AUTO_MAP_CAP = 300;
-var autoShown = false;   // the saved card is showing a match, not a pick
-var autoHint = null;     // {url, season, episode} the file's name gave, for when a show is picked
+var autoShown = false;   // the card shows a match, not a pick
+var autoHint = null;     // {url, season, episode} from the file name
 
 function autoLookupOn() {
   try { return localStorage.getItem("epinfo_auto_lookup") === "true"; } catch(e) { return false; }
@@ -920,7 +969,7 @@ function rememberAuto(url, entry) {
   saveAutoMap(m);
 }
 
-// Status line under the switch; detail is the reason
+// Status line under the switch
 function autoStatus(text, detail) {
   var el = document.getElementById("auto-status");
   if (!el) return;
@@ -941,7 +990,7 @@ function doToggleAutoLookup(on) {
     if (currentVideoUrl && !document.getElementById("saved").classList.contains("on")) startAutoLookup(currentVideoUrl);
   } else {
     autoStatus("");
-    // Off means off: a match on screen goes too.
+    // Off means off, a match on screen goes too
     if (autoShown) { autoShown = false; showUnidentified(); }
   }
 }
@@ -963,14 +1012,14 @@ function showAutoMatch(info) {
 
 iina.onMessage("autoLookupResult", function(d) {
   if (!d || d.url !== currentVideoUrl || !autoLookupOn()) return;
-  // A pick made while the lookup ran wins.
+  // A pick made meanwhile wins
   if (document.getElementById("saved").classList.contains("on") && !autoShown) return;
   if (d.info) {
     rememberAuto(d.url, { info: d.info });
     showAutoMatch(d.info);
   } else {
     var q = document.getElementById("q");
-    // Search for what it found, so the right one is a click away; not when the user has typed their own
+    // Search for it so the right one is a click away, unless the user typed something
     var searching = !!(q && !q.value && d.query);
     autoHint = searching && d.season != null && d.episode != null ? { url: d.url, season: d.season, episode: d.episode } : null;
     autoStatus(searching ? "Not sure what this is — pick it below." : "Not sure what this is — search below.", d.reason);
@@ -978,7 +1027,7 @@ iina.onMessage("autoLookupResult", function(d) {
   }
 });
 
-// "Not right? Search": forget the match and never guess this file again
+// Not right? Search: forget the match, never guess this file again
 function doAutoWrong() {
   var info = null;
   try { info = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
@@ -1005,7 +1054,7 @@ iina.onMessage("fileChanged", function(d){
   currentVideoUrl = (d && d.url) || "";
   autoHint = null;
 
-  // Reset search panel state regardless
+  // Reset the search panel
   document.getElementById("q").value = "";
   selShow = null; selSeason = null; episodeCache = []; resetPanel();
 
@@ -1013,11 +1062,11 @@ iina.onMessage("fileChanged", function(d){
   var saved = currentVideoUrl ? map[currentVideoUrl] : null;
 
   if (saved) {
-    // URL is already identified — restore silently
+    // Known URL, restore it
     restoreSelection(saved);
   } else {
     showUnidentified();
-    // Off unless the user switched it on; a pick of their own always wins.
+    // Only when switched on; the user's own pick always wins
     if (autoLookupOn() && currentVideoUrl) startAutoLookup(currentVideoUrl);
   }
 });
@@ -1032,9 +1081,9 @@ function restoreSelection(saved) {
   var sdBtn = document.getElementById("sd-search-btn");
   if (sdBtn && localStorage.getItem("epinfo_subdl_key")) sdBtn.disabled = false;
   iina.postMessage("episodeSelected", saved);
-  // Update the opensubtitles.org link if the ids are already cached
+  // .org link, if the ids are cached
   if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
-  // Resolve IMDB ids early for the .org link
+  // Otherwise ask main.js for them
   if (TK && saved.tmdbId && !saved.imdbId && !saved.parentImdbId) {
     iina.postMessage("resolveImdbOnly", {
       tmdbKey: TK,
@@ -1057,6 +1106,9 @@ function showUnidentified() {
   if (typeof resetSd === "function") { resetSd(); var sdBtn2 = document.getElementById("sd-search-btn"); if (sdBtn2) sdBtn2.disabled = true; }
   var orgRow = document.getElementById("os-dotorg-row");
   if (orgRow) orgRow.style.display = "none";
+  // The custom search was filled in for the last file
+  var mq = document.getElementById("os-manual-q");
+  if (mq) mq.value = "";
 }
 
 // API key
@@ -1174,7 +1226,112 @@ function paintThemePills(t) {
   for (var i = 0; i < pills.length; i++) {
     pills[i].className = "thm" + (pills[i].getAttribute("data-t") === t ? " on" : "");
   }
+  // An Auto width follows the theme
+  paintWidth(t);
+  paintPosterSide(t);
+  paintGlassStyle(t);
 }
+
+// Card width; unset is the theme's own (Auto)
+var THEME_WIDTH = { classic: 100, compact: 100, poster: 72, glass: 76 };
+function savedWidth() {
+  var v = parseInt(localStorage.getItem("epinfo_overlay_width") || "", 10);
+  return isNaN(v) ? null : Math.max(40, Math.min(100, v));
+}
+function paintWidth(t) {
+  var v = savedWidth();
+  t = t || localStorage.getItem("epinfo_overlay_theme") || "classic";
+  document.getElementById("width-slider").value = v !== null ? v : (THEME_WIDTH[t] || 100);
+  document.getElementById("width-val").textContent = v !== null ? v + "%" : "Auto";
+  document.getElementById("width-auto").style.display = v !== null ? "" : "none";
+}
+function doSetWidth(val) {
+  var v = Math.max(40, Math.min(100, parseInt(val, 10) || 100));
+  try { localStorage.setItem("epinfo_overlay_width", v); } catch(e) {}
+  paintWidth();
+  iina.postMessage("setOverlayWidth", { value: v });
+}
+function doResetWidth() {
+  try { localStorage.removeItem("epinfo_overlay_width"); } catch(e) {}
+  paintWidth();
+  iina.postMessage("setOverlayWidth", { value: null });
+}
+
+// Poster side; unset is the theme's own (Auto). Compact has no poster
+function savedPosterSide() {
+  var v = localStorage.getItem("epinfo_poster_side");
+  return v === "left" || v === "right" ? v : null;
+}
+function paintPosterSide(t) {
+  var v = savedPosterSide() || "auto";
+  var pills = document.querySelectorAll("#poster-pills .thm");
+  for (var i = 0; i < pills.length; i++) {
+    pills[i].className = "thm" + (pills[i].getAttribute("data-p") === v ? " on" : "");
+  }
+  t = t || localStorage.getItem("epinfo_overlay_theme") || "classic";
+  document.getElementById("poster-row").style.display = t === "compact" ? "none" : "";
+}
+function doSetPosterSide(v) {
+  var side = v === "left" || v === "right" ? v : null;
+  try { if (side) localStorage.setItem("epinfo_poster_side", side); else localStorage.removeItem("epinfo_poster_side"); } catch(e) {}
+  paintPosterSide();
+  iina.postMessage("setPosterSide", { value: side });
+}
+
+// Glass style: Frosted unless Clear or Colorful is picked; the row shows only with Glass
+function savedGlassStyle() {
+  var v = localStorage.getItem("epinfo_glass_style");
+  return v === "clear" || v === "colorful" ? v : null;
+}
+function paintGlassStyle(t) {
+  var v = savedGlassStyle() || "frosted";
+  var pills = document.querySelectorAll("#glass-pills .thm");
+  for (var i = 0; i < pills.length; i++) {
+    pills[i].className = "thm" + (pills[i].getAttribute("data-g") === v ? " on" : "");
+  }
+  t = t || localStorage.getItem("epinfo_overlay_theme") || "classic";
+  document.getElementById("glass-row").style.display = t === "glass" ? "flex" : "none";
+}
+function doSetGlassStyle(v) {
+  var style = v === "clear" || v === "colorful" ? v : null;
+  try { if (style) localStorage.setItem("epinfo_glass_style", style); else localStorage.removeItem("epinfo_glass_style"); } catch(e) {}
+  paintGlassStyle();
+  iina.postMessage("setGlassStyle", { value: style });
+}
+
+// Cast and Up next, both off by default
+function cardFlag(key, dflt) {
+  var s = localStorage.getItem(key);
+  return s === null ? dflt : s === "true";
+}
+function paintCardSwitches() {
+  document.getElementById("cast-toggle").checked = cardFlag("epinfo_card_cast", false);
+  document.getElementById("next-toggle").checked = cardFlag("epinfo_card_next", false);
+}
+function doToggleCast(on) {
+  try { localStorage.setItem("epinfo_card_cast", on ? "true" : "false"); } catch(e) {}
+  iina.postMessage("setCardCast", { on: !!on });
+}
+function doToggleNext(on) {
+  try { localStorage.setItem("epinfo_card_next", on ? "true" : "false"); } catch(e) {}
+  iina.postMessage("setCardNext", { on: !!on });
+}
+// Only what differs from the defaults
+function sendCardSettings() {
+  var w = savedWidth();
+  if (w !== null) iina.postMessage("setOverlayWidth", { value: w });
+  var ps = savedPosterSide();
+  if (ps) iina.postMessage("setPosterSide", { value: ps });
+  if (savedGlassStyle()) iina.postMessage("setGlassStyle", { value: savedGlassStyle() });
+  if (cardFlag("epinfo_card_cast", false)) iina.postMessage("setCardCast", { on: true });
+  if (cardFlag("epinfo_card_next", false)) iina.postMessage("setCardNext", { on: true });
+}
+(function() {
+  paintWidth();
+  paintPosterSide();
+  paintGlassStyle();
+  paintCardSwitches();
+})();
 function doSetTheme(t) {
   try { localStorage.setItem("epinfo_overlay_theme", t); } catch(e) {}
   paintThemePills(t);
@@ -1231,7 +1388,7 @@ function doToggleSkip(on) {
   iina.postMessage("setSkipEnabled", { enabled: on });
 }
 
-// Recent searches: the last few queries, one click to rerun
+// Recent searches
 var SEARCHES_CAP = 5;
 
 function loadSearches() {
@@ -1270,7 +1427,7 @@ function renderSearches() {
   list.innerHTML = html;
 }
 
-// Recent picks: [{ info, lastUsed, pinned }]; pinned ones don't count toward the cap
+// Recent picks: [{ info, lastUsed, pinned }], pinned ones don't count toward the cap
 var RECENTS_CAP = 5;
 
 function loadRecents() {
@@ -1346,7 +1503,7 @@ function clearRecents() {
   saveRecents([]);
   renderRecents();
 }
-// Sorted and capped, so an older, longer saved list doesn't show in full
+// Sorted and capped (older versions saved longer lists)
 function sortedRecents() {
   var sorted = loadRecents().sort(function(a, b) {
     if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
@@ -1405,15 +1562,13 @@ function renderRecents() {
     var n = v !== null ? parseFloat(v) : 3;
     if (!isNaN(n)) iina.postMessage("setPauseDelay", { value: n });
 
-    // TMDB key, for main.js's IMDB lookups
     iina.postMessage("setTmdbKey", { key: localStorage.getItem("epinfo_tmdb_key") || "" });
 
-    // Overlay theme
     var th = localStorage.getItem("epinfo_overlay_theme") || "classic";
     paintThemePills(th);
     iina.postMessage("setOverlayTheme", { value: th });
 
-    // Skip intro — opt-in, so default off
+    // Skip intro is off by default
     var sk = localStorage.getItem("epinfo_skip_enabled") === "true";
     paintSkipToggle(sk);
     iina.postMessage("setSkipEnabled", { enabled: sk });
@@ -1421,14 +1576,14 @@ function renderRecents() {
     renderSearches();
     pruneRecents();
     renderRecents();
+    sendCardSettings();
 
     // Settings sent: main.js can resend fileChanged now
     iina.postMessage("sidebarReady", {});
-    // Show the opensubtitles.org link if we can
     if (typeof updateOsDotOrgLink === "function") updateOsDotOrgLink();
   }, 800);
 })();
-// main.js asks again when it started listening after the settings above were sent
+// main.js asks again if it missed the settings above
 iina.onMessage("resendSettings", function() {
   iina.postMessage("setOverlayEnabled", { enabled: localStorage.getItem("epinfo_overlay_enabled") !== "false" });
   var op = localStorage.getItem("epinfo_overlay_opacity");
@@ -1441,6 +1596,7 @@ iina.onMessage("resendSettings", function() {
   iina.postMessage("setTmdbKey", { key: localStorage.getItem("epinfo_tmdb_key") || "" });
   iina.postMessage("setOverlayTheme", { value: localStorage.getItem("epinfo_overlay_theme") || "classic" });
   iina.postMessage("setSkipEnabled", { enabled: localStorage.getItem("epinfo_skip_enabled") === "true" });
+  sendCardSettings();
   iina.postMessage("sidebarReady", {});
 });
 function doSetPauseDelay(val) {
@@ -1464,7 +1620,7 @@ var wzCache = [], wzLoadedIdx = null, wzPendingIdx = null;
 (function() {
   if (WZK) { document.getElementById("wz-key-box").style.display = "none"; document.getElementById("wz-key-ok").style.display = "flex"; }
 
-  // Whole-show row is for TV shows; doWzSearch reports a missing key
+  // Whole-show row is TV only; doWzSearch reports a missing key
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
   var bbRow = document.getElementById("wz-broad-row");
@@ -1503,7 +1659,7 @@ function resetWz() {
   document.getElementById("wz-results").innerHTML = '<div class="msg" style="padding:6px 0">Select an episode, then search.</div>';
   document.getElementById("wz-clear-row").style.display = "none";
 }
-// Wyzie search, with its own timeout here
+// Wyzie search, with its own timeout
 var wzTimerId = null;
 var WZ_TIMEOUT_MS = 30000;
 
@@ -1535,7 +1691,7 @@ function doWzSearch(broadShow) {
     + ' <button onclick="wzCancel()" style="margin-left:8px;background:none;border:none;color:rgba(255,150,150,.8);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Cancel</button></div>';
 
   iina.postMessage("searchWyzie", {
-    tmdbKey:       TK,                              // for lazy IMDB resolve
+    tmdbKey:       TK,
     tmdbId:        saved.tmdbId,
     imdbId:        saved.imdbId || null,
     parentImdbId:  saved.parentImdbId || null,
@@ -1571,7 +1727,7 @@ iina.onMessage("wyzieSearchProgress", function(d) {
 iina.onMessage("wyzieSearchResult", function(d) {
   wzCancelTimer();
   wzEnableInputs();
-  // Cache resolved IMDB IDs from main.js
+  // Cache the IMDb ids main.js found
   cacheResolvedImdbIds({ imdb: d.resolvedImdb, parentImdb: d.resolvedParentImdb });
   var triedSuffix = (d.triedSteps && d.triedSteps.length)
     ? '<div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:4px">Tried: ' + htmlEsc(d.triedSteps.join(" → ")) + '</div>'
@@ -1623,7 +1779,7 @@ iina.onMessage("wyzieLoadResult", function(d) {
 function doWzNone() { wzLoadedIdx = -1; wzPendingIdx = null; iina.postMessage("clearSub", {}); renderWz(); document.getElementById("wz-clear-row").style.display = "none"; }
 function doClearSub() { wzLoadedIdx = null; wzPendingIdx = null; iina.postMessage("clearSub", {}); document.getElementById("wz-clear-row").style.display = "none"; renderWz(); }
 
-// SubDL: free key from subdl.com/panel/api; main.js handles the ZIPs
+// SubDL: free key at subdl.com/panel/api, main.js handles the zips
 var SDK = localStorage.getItem("epinfo_subdl_key") || "";
 var sdCache = [], sdLoadedIdx = null, sdPendingIdx = null;
 var sdTimerId = null;
@@ -1745,7 +1901,7 @@ iina.onMessage("subdlSearchResult", function(d) {
 
   var allResults = d.results || [];
 
-  // SubDL often ignores the season/episode filter: prefer exact matches, then season packs, then everything
+  // SubDL often ignores season/episode: exact matches first, then season packs, then the rest
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem("epinfo_ep") || "null"); } catch(e) {}
   var displayed = allResults;
@@ -1793,7 +1949,7 @@ function renderSd() {
   var html = '<div class="sub-none-row"><span>No subtitle</span><button class="sub-none-btn' + (sdLoadedIdx === -1 ? " on" : "") + '" onclick="doSdNone()">Select</button></div>';
   sdCache.forEach(function(item, i) {
     var name = item.release_name || item.name || "Unknown";
-    // Trim "SUBDL.com::" prefix that often appears in `name`
+    // Drop the "SUBDL.com::" prefix
     name = String(name).replace(/^SUBDL\.com::/i, "").replace(/\.zip$/i, "");
     var lang = (item.lang || item.language || "?");
     var langU = lang.length <= 3 ? lang.toUpperCase() : (lang.charAt(0).toUpperCase() + lang.slice(1));
@@ -1801,7 +1957,7 @@ function renderSd() {
     var sea = item.season, epi = item.episode;
     var meta = langU + " · SRT" + (author ? " · " + author : "");
     if (sea || epi) {
-      // 0/null means full-season pack
+      // 0/null is a season pack
       meta += (sea && epi) ? " · S" + sea + "E" + epi : " · Full season";
     }
     var dis = item.url ? "" : " disabled";
@@ -1871,7 +2027,6 @@ function doSaveOsKey() {
     document.getElementById("os-key-box").style.display = "none";
     document.getElementById("os-key-ok").style.display = "flex";
     document.getElementById("os-search-btn").disabled = false;
-    // Key is set: enable login
     var loginBtn = document.getElementById("os-login-btn");
     loginBtn.disabled = false; loginBtn.style.opacity = "1";
     document.getElementById("os-key-required-note").style.display = "none";
@@ -1886,7 +2041,7 @@ function doChangeOsKey() {
   document.getElementById("os-logged").style.display = "none";
   document.getElementById("os-login-form").style.display = "block";
   document.getElementById("os-search-btn").disabled = true;
-  // No key — disable login button and show note
+  // No key: disable login and show the note
   var loginBtn = document.getElementById("os-login-btn");
   loginBtn.disabled = true; loginBtn.style.opacity = "0.35";
   document.getElementById("os-key-required-note").style.display = "block";
@@ -1919,14 +2074,14 @@ function resetOs() {
   osCache = []; osLoadedIdx = null; osPendingIdx = null;
   document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0">Set API Key above first.</div>';
 }
-// OpenSubtitles search, with its own deadline here
+// OpenSubtitles search, with its own deadline
 var osTimerId = null;
 var OS_TIMEOUT_MS = 30000;
 
 function osCancelTimer() {
   if (osTimerId !== null) { clearTimeout(osTimerId); osTimerId = null; }
 }
-// Only the main search button is disabled; the custom search stays usable
+// Only the main button is disabled, the custom search still works
 function osEnableMainBtn() { document.getElementById("os-search-btn").disabled = false; }
 function osDisableMainBtn() { document.getElementById("os-search-btn").disabled = true; }
 
@@ -1937,7 +2092,7 @@ function doOsSearch(manualQuery) {
 
   manualQuery = (manualQuery && String(manualQuery).trim()) || null;
 
-  // Manual search needs only an OS API key. Auto-search needs a saved episode.
+  // The custom search needs only the API key, the main one a picked episode
   if (!OSK) {
     document.getElementById("os-results").innerHTML = '<div class="msg" style="padding:6px 0;color:rgba(255,200,100,.8)">Set the OpenSubtitles API Key above first.</div>';
     return;
@@ -1948,7 +2103,7 @@ function doOsSearch(manualQuery) {
   }
 
   var match = (saved && saved.code) ? saved.code.match(/S(\d+)E(\d+)/i) : null;
-  // Movies: the year from airDate helps OpenSubtitles match
+  // Films: the year helps OpenSubtitles match
   var year = null;
   if (saved && saved.isMovie) {
     var ad = String(saved.airDate || saved.code || "");
@@ -1964,7 +2119,7 @@ function doOsSearch(manualQuery) {
   iina.postMessage("searchSubs", {
     key:           OSK,
     token:         OST,
-    tmdbKey:       TK,                                       // for lazy IMDB resolve
+    tmdbKey:       TK,
     tmdbId:        saved ? saved.tmdbId       : null,
     imdbId:        saved ? saved.imdbId       : null,
     parentImdbId:  saved ? saved.parentImdbId : null,
@@ -2031,7 +2186,7 @@ function updateOsDotOrgLink() {
   var link = document.getElementById("os-dotorg-link");
   if (!row || !link) return;
   if (!saved) { row.style.display = "none"; return; }
-  // Prefer episode-level IMDB id (most precise); fall back to show/movie level
+  // Episode id first, then the show or film
   var rawId = saved.imdbId || saved.parentImdbId || "";
   var id    = String(rawId).replace(/^tt/i, "").replace(/^0+/, "");
   if (!id) { row.style.display = "none"; return; }
@@ -2040,7 +2195,7 @@ function updateOsDotOrgLink() {
   row.style.display = "block";
 }
 
-// Open the .org link in the browser through main.js (IINA ignores target=_blank)
+// Through main.js, IINA ignores target=_blank
 function openOsDotOrg() {
   var link = document.getElementById("os-dotorg-link");
   var url  = link ? link.getAttribute("data-url") : "";
@@ -2077,7 +2232,7 @@ function doOsNone() { osLoadedIdx = -1; osPendingIdx = null; iina.postMessage("c
 
 </script>
 <script>
-// Collapsible subtitle sources — remember each one's state across launches.
+// Remember which subtitle sections are open
 (function () {
   document.querySelectorAll("details.sub-sec").forEach(function (d) {
     var key = "epinfo_open_" + d.getAttribute("data-k");

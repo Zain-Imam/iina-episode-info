@@ -3,7 +3,7 @@ name: API Health
 # Daily check that every API the plugin uses still works
 on:
   schedule:
-    # Off-the-hour: GitHub queues scheduled jobs heavily at :00.
+    # Not on the hour, GitHub queues a lot of jobs at :00
     - cron: "17 6 * * *"
   workflow_dispatch:
   push:

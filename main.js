@@ -1,12 +1,10 @@
-// IINA Plugin: Episode Info v1.3.4
+// IINA Plugin: Episode Info v1.3.5
 
 const { core, event, utils, file, menu } = iina;
-// Messages to the overlay and sidebar go through messageSafe()
 const overlay = safeMessenger(iina.overlay, ["loadFile", "onMessage", "show", "hide", "setClickable"]);
 const sidebar = safeMessenger(iina.sidebar, ["loadFile", "onMessage"]);
 
-// Helpers
-// IINA passes messages to web views inside a JS template literal, so a backtick or ${ would break them
+// IINA puts messages inside a template literal, so ` and ${ would break them
 function messageSafe(v) {
   if (typeof v === "string") return v.replace(/`/g, "\u02CB").replace(/\$\{/g, "$\u200B{");
   if (Array.isArray(v)) return v.map(messageSafe);
@@ -20,7 +18,6 @@ function messageSafe(v) {
   return v;
 }
 
-// Wraps iina.overlay / iina.sidebar so postMessage goes through messageSafe()
 function safeMessenger(target, methods) {
   var m = {};
   methods.forEach(function(name) {
@@ -30,7 +27,6 @@ function safeMessenger(target, methods) {
   return m;
 }
 
-// Turn any thrown value or API error into a readable string
 function errStr(e) {
   if (e == null) return "Unknown error";
   if (typeof e === "string") return e;
@@ -45,12 +41,10 @@ function errStr(e) {
   return String(e);
 }
 
-// Quote a string for /bin/sh -c
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }
 
-// Race an HTTP promise against a timeout so search never hangs forever.
 function withTimeout(p, ms, label) {
   return Promise.race([
     p,
@@ -61,12 +55,12 @@ function withTimeout(p, ms, label) {
     })
   ]);
 }
-var HTTP_TIMEOUT_MS = 10000; // per-call budget
+var HTTP_TIMEOUT_MS = 10000;
 
-// OpenSubtitles needs a User-Agent like "AppName vX.Y.Z" or it throttles requests
-var OS_USER_AGENT = "EpisodeInfo v1.3.4";
+// OpenSubtitles throttles requests without an "App vX.Y.Z" User-Agent
+var OS_USER_AGENT = "EpisodeInfo v1.3.5";
 
-// Lazy IMDB id resolver: show-level and episode-level ids from TMDB
+// IMDb ids for the show and episode, from TMDB
 async function resolveImdbIds(d, tmdbKey) {
   if (!tmdbKey) return d;
   if (!d.tmdbId) return d;
@@ -85,7 +79,6 @@ async function resolveImdbIds(d, tmdbKey) {
         if (r.statusCode === 200 && body.imdb_id) d.imdbId = body.imdb_id;
       }
     } else {
-      // TV: show and episode ids in parallel
       var calls = [];
       var needShow = !d.parentImdbId;
       var needEp   = !d.imdbId && d.season && d.episode;
@@ -125,14 +118,14 @@ async function resolveImdbIds(d, tmdbKey) {
   return d;
 }
 
-// OpenSubtitles wants the "tt" prefix and leading zeros stripped
+// OpenSubtitles wants no tt prefix and no leading zeros
 function stripTtAndZeros(s) {
   if (!s) return null;
   var n = String(s).replace(/^tt/i, "").replace(/^0+/, "");
   return n || null;
 }
 
-// Canonical IMDB id, leading zeros kept: the skip databases need it exact
+// The skip databases need the exact id, zeros included
 function canonicalImdb(s) {
   if (!s) return null;
   var t = String(s).trim();
@@ -140,7 +133,7 @@ function canonicalImdb(s) {
   return /^tt/i.test(t) ? t : ("tt" + t);
 }
 
-// Keeps the "tt" prefix, strips leading zeros (for Wyzie)
+// Wyzie: tt prefix, no leading zeros
 function withTtPrefix(s) {
   if (!s) return null;
   var n = stripTtAndZeros(s);
@@ -152,19 +145,25 @@ var currentEpisode     = null;
 var pauseTimer         = null;
 var overlayVisible     = false;
 var overlayBgOpacity   = 0.72;
-var overlayEnabled     = true; // set from the sidebar
-var overlayVerticalPos = 50;     // 0=top, 50=center, 100=bottom
-var pauseDelay         = 3;      // seconds before overlay shows on pause
-var overlayTheme       = "classic"; // classic | compact | poster
-var skipEnabled        = false;  // opt-in: skip intro/recap/credits
-var cardVisible        = false;  // info card showing?
-var skipVisible        = false;  // skip pill showing?
-var segments           = [];     // resolved skip segments for this file
-var activeSegment      = null;   // the one the pill is currently offering
-var timeWatcher        = null;   // id of the mpv.time-pos observer
-var tmdbKey            = ""; // pushed from the sidebar
-var segmentCache       = {};     // "imdb:season:episode" -> segments
-var currentVideoUrl    = ""; // url of the current file, for the sidebar's per-URL memory
+var overlayEnabled     = true;
+var overlayVerticalPos = 50;     // 0 top, 100 bottom
+var pauseDelay         = 3;      // seconds
+var overlayTheme       = "classic"; // classic | compact | poster | glass
+var overlayWidth       = null;   // % of the window, null = theme default
+var posterSide         = null;   // left | right, null = theme default
+var glassStyle         = null;   // clear | colorful, null = frosted
+var cardCast           = false;
+var cardNext           = false;
+var cardExtras         = { key: "", cast: null, next: null };
+var skipEnabled        = false;
+var cardVisible        = false;
+var skipVisible        = false;
+var segments           = [];
+var activeSegment      = null;
+var timeWatcher        = null;
+var tmdbKey            = "";
+var segmentCache       = {};     // imdb:season:episode -> segments
+var currentVideoUrl    = "";
 
 function log(msg) {
   iina.console.log("[EpInfo] " + msg);
@@ -173,7 +172,7 @@ function log(msg) {
 
 function showOverlay(d) {
   if (!overlayEnabled) return;
-  overlay.postMessage("showData", {
+  var data = {
     showTitle:   d.showTitle  || "",
     epTitle:     d.epTitle    || "",
     code:        d.code       || "",
@@ -184,7 +183,15 @@ function showOverlay(d) {
     bgOpacity:   overlayBgOpacity,
     verticalPos: overlayVerticalPos,
     theme:       overlayTheme
-  });
+  };
+  // Only sent once changed, so a default card is the same as before
+  if (overlayWidth !== null) data.width = overlayWidth;
+  if (posterSide) data.poster = posterSide;
+  if (glassStyle) data.glass = glassStyle;
+  var x = cardExtras.key === extrasKey(d) ? cardExtras : null;
+  if (cardCast && x && x.cast && x.cast.length) data.cast = x.cast;
+  if (cardNext && x && x.next) data.next = x.next;
+  overlay.postMessage("showData", data);
   overlay.show();
   cardVisible = true;
   overlayVisible = true;
@@ -201,13 +208,13 @@ function hideOverlay() {
   sidebar.postMessage("overlayShowing", { visible: false });
 }
 
-// The info card and skip pill share the overlay; hide it only when neither is up
+// The card and the skip pill share the overlay
 function syncOverlay() {
   if (cardVisible || skipVisible) overlay.show();
   else overlay.hide();
 }
 
-// Skip intro / recap / credits: chapters first, then the databases. Never seeks on its own.
+// Skip intro/recap/credits: chapters first, then the online databases
 
 var SEGMENT_LABELS = {
   intro:   "Skip Intro",
@@ -217,7 +224,7 @@ var SEGMENT_LABELS = {
   preview: "Skip Preview"
 };
 
-// Crowdsourced data contains reversed and zero-length ranges.
+// Crowdsourced data has reversed and empty ranges
 function validSegment(seg) {
   return seg && isFinite(seg.start) && isFinite(seg.end) &&
          seg.end > seg.start && seg.end - seg.start >= 3;
@@ -226,14 +233,14 @@ function validSegment(seg) {
 function pushSegment(list, kind, start, end, source, opts) {
   var seg = {
     kind: kind, start: Number(start), end: Number(end), source: source,
-    // A value guessed from a null is a placeholder, not a measurement
+    // A time filled in for a null is a guess
     preciseStart: !(opts && opts.vagueStart),
     preciseEnd:   !(opts && opts.vagueEnd)
   };
   if (validSegment(seg)) list.push(seg);
 }
 
-// 1. Chapters: each one ends where the next begins
+// Chapters: each ends where the next begins
 function segmentsFromChapters() {
   var out = [];
   try {
@@ -258,7 +265,7 @@ function segmentsFromChapters() {
   return out;
 }
 
-// 2. The databases, keyed on IMDB id + season + episode
+// Online databases, by IMDb id + season + episode
 async function segmentsFromApis(imdbId, season, episode) {
   var out = [];
   if (!imdbId) return out;
@@ -276,18 +283,18 @@ async function segmentsFromApis(imdbId, season, episode) {
       if (r.statusCode !== 200) return;
       var body = r.data || JSON.parse(r.text || "{}");
       parse(body);
-    } catch(e) { /* one dead provider must not break the others */ }
+    } catch(e) { /* try the others */ }
   }
 
   await Promise.all([
-    // IntroDB — /segments returns every type; /intro is intros-only.
+    // IntroDB: /segments has every type, /intro only intros
     grab("IntroDB", "https://api.introdb.app/segments?" + qs, function(b) {
       ["intro", "recap", "outro"].forEach(function(k) {
         if (b[k]) pushSegment(out, k, b[k].start_sec, b[k].end_sec, "introdb");
       });
     }),
-    // TheIntroDB: start_ms/end_ms may be null (from the start / to the end)
-    grab("TheIntroDB", "https://api.theintrodb.org/v2/media?" + qs, function(b) {
+    // TheIntroDB: a null start_ms/end_ms means from the start / to the end
+    grab("TheIntroDB", "https://api.theintrodb.org/v4/media?" + qs, function(b) {
       var dur = 0;
       try { dur = iina.mpv.getNumber("duration") || 0; } catch(e) {}
       [["intro", "intro"], ["credits", "outro"]].forEach(function(pair) {
@@ -303,7 +310,7 @@ async function segmentsFromApis(imdbId, season, episode) {
         });
       });
     }),
-    // SkipDB — 200 with null members when it has nothing.
+    // SkipDB answers 200 with nulls when it has nothing
     grab("SkipDB", "https://api.skipdb.tv/api/segments?" + qs, function(b) {
       var segs = b.segments || {};
       ["intro", "recap", "outro", "preview"].forEach(function(k) {
@@ -318,7 +325,7 @@ async function segmentsFromApis(imdbId, season, episode) {
   return out;
 }
 
-// AniSkip uses MyAnimeList ids, so map the IMDB id through ARM first
+// AniSkip wants MAL ids, ARM maps IMDb to MAL
 async function malIdFor(imdbTt, season) {
   try {
     var r = await withTimeout(
@@ -357,10 +364,10 @@ async function segmentsFromAniSkip(malId, episode) {
   return out;
 }
 
-// One segment per kind; the stretch most databases agree on wins
+// One segment per kind, the one most sources agree on
 var SOURCE_ORDER = { chapters: 0, introdb: 1, theintrodb: 2, skipdb: 3 };
 
-// Overlap as a fraction of the shorter segment: 1 = identical, 0 = disjoint.
+// 1 = same range, 0 = no overlap
 function overlapRatio(a, b) {
   var lo = Math.max(a.start, b.start);
   var hi = Math.min(a.end, b.end);
@@ -398,7 +405,7 @@ function mergeSegments(list) {
   return Object.keys(byKind).map(function(kind) {
     var segs = byKind[kind];
 
-    // Cluster segments that describe the same stretch of video.
+    // Group segments covering the same part
     var groups = [];
     segs.forEach(function(seg) {
       for (var i = 0; i < groups.length; i++) {
@@ -409,7 +416,7 @@ function mergeSegments(list) {
       groups.push([seg]);
     });
 
-    // Most corroborated group wins; ties go to the more reliable source.
+    // Biggest group wins, ties go to the more reliable source
     groups.sort(function(a, b) {
       var d = distinctSources(b).length - distinctSources(a).length;
       if (d !== 0) return d;
@@ -425,9 +432,9 @@ function mergeSegments(list) {
 
     return {
       kind:    kind,
-      // Earliest start, so the button is up before the intro rolls.
+      // Earliest start, so the button shows before the intro
       start:   Math.min.apply(null, starts),
-      // Median end: overshooting skips real content, and the median resists outliers
+      // Median end, overshooting would skip real content
       end:     median(ends),
       sources: distinctSources(win),
       agreed:  distinctSources(win).length
@@ -449,7 +456,7 @@ async function resolveSegments(info, forceRefresh) {
     return;
   }
 
-  // Keyed on the show's IMDB id, not the episode's
+  // By the show's IMDb id, not the episode's
   function showLevelId() {
     return canonicalImdb(info.isMovie ? info.imdbId : info.parentImdbId);
   }
@@ -468,14 +475,14 @@ async function resolveSegments(info, forceRefresh) {
     return;
   }
 
-  // Anime first: AniSkip is more precise for openings and endings
+  // AniSkip is more precise for anime
   var mal = await malIdFor(imdb, info.season);
   var anime = mal ? await segmentsFromAniSkip(mal, info.episode) : [];
 
   var remote = await segmentsFromApis(imdb, info.season, info.episode);
   var merged = mergeSegments(remote);
 
-  // AniSkip wins per kind; the rest falls back to the TV databases
+  // AniSkip first, the TV databases fill in the rest
   if (anime.length) {
     var byKind = {};
     mergeSegments(anime).forEach(function(x) { byKind[x.kind] = x; });
@@ -488,7 +495,7 @@ async function resolveSegments(info, forceRefresh) {
   reportSkip(info, segments);
 }
 
-// Lets the sidebar's "Search again" button stop spinning and report.
+// Tells the sidebar's Search again button it's done
 function reportSkip(info, list) {
   sidebar.postMessage("skipResult", {
     count: list.length,
@@ -521,11 +528,11 @@ function showSkip(seg) {
   skipVisible = true;
   overlay.postMessage("showSkip", { label: SEGMENT_LABELS[seg.kind] || "Skip" });
   syncOverlay();
-  // Clickable only while the pill is up, so click-to-pause still works
+  // Clickable only while the pill is up, so click-to-pause keeps working
   try { overlay.setClickable(true); } catch(e) { log("setClickable(true) failed: " + errStr(e)); }
 }
 
-// Reachable from the overlay button, the Plugins menu and Alt+S.
+// Overlay button, Plugins menu and Alt+S
 function skipNow(via) {
   if (!activeSegment) {
     return;
@@ -568,7 +575,7 @@ function hideSkip() {
   syncOverlay();
 }
 
-// Follows time-pos instead of a timer, which would drift while paused or after a seek
+// time-pos, not a timer: a timer drifts on pause and seek
 function startTimeWatcher() {
   if (timeWatcher) return;
   timeWatcher = event.on("mpv.time-pos.changed", function() {
@@ -595,22 +602,22 @@ function stopTimeWatcher() {
   timeWatcher = null;
 }
 
-// Automatic Lookup (experimental): only runs when the sidebar asks, and answers with a confirmed match or "not sure"
+// Automatic Lookup: runs when the sidebar asks, answers with a sure match or "not sure"
 
 var AL_VIDEO_EXT = /\.(mkv|mp4|m4v|avi|mov|wmv|flv|webm|ts|m2ts|mts|mpg|mpeg|ogv|3gp|divx|m3u8|iso|rmvb|vob)$/i;
 var AL_POSTER = "https://image.tmdb.org/t/p/w500";
 
-// Names that say nothing about what is playing.
+// Names that say nothing
 var AL_GENERIC = /^(?:video|videos|stream|streams|index|master|playlist|manifest|media|file|files|download|downloads|play|watch|movie|movies|film|films|show|shows|series|tv|episode|episodes|output|chunklist|default|main|untitled|clip|sample|source|content|data|null|undefined|resolve|playback|dl|get|view|preview|original|encoded|new|test|temp|tmp|seg|segment|part|audio)$/i;
-// Folder names that are never a show or film.
+// Folders that are never a show or film
 var AL_FOLDER_DENY = /^(?:users|home|downloads?|movies|films?|tv|tv shows|shows|series|videos?|media|volumes|library|plex|jellyfin|emby|torrents?|complete|completed|incoming|new|private|public|desktop|documents|mnt|data|share|shared|nas|disk ?\d*|drive|storage|anime)$/i;
-// Folders that hold extras rather than the film or episode itself.
+// Folders of extras
 var AL_EXTRA_FOLDER = /^(?:extras?|featurettes?|trailers?|samples?|behind the scenes|deleted scenes|interviews|shorts|scenes|other|specials?)$/i;
-// Trailers, samples and other things that are not the episode or film.
+// Trailers, samples and other extras
 var AL_EXTRA = /\b(?:trailers?|teasers?|sample|featurettes?|behind the scenes|deleted scenes?|making of|bloopers?|gag reel|extras|bonus|promo|ncop|nced|creditless|music video|full movie|reaction|explained|recap|interviews?|soundtrack|ost|opening|ending)\b/i;
-// Numbering TMDB does not share: "Final Season", "2nd Season", "Part 2".
+// Numbering TMDB doesn't use (Final Season, 2nd Season, Part 2)
 var AL_SEASON_WORDS = /\b(?:final season|\d+(?:st|nd|rd|th) season|part \d+|cour \d+)\b/i;
-// Tags that end the title. Words like "web" or "complete" are left out, they show up in real titles
+// Tags that end the title. Not "web" or "complete", real titles use them
 var AL_CUT = [
   /\b(?:2160p|1440p|1080p|1080i|720p|576p|480p|4k|uhd)\b/i,
   /\b(?:blu-?ray|bdrip|brrip|bdremux|remux|web-?dl|webrip|hdtv|pdtv|dvdrip|hdrip|dvdscr|hdcam|camrip|telesync|hdts)\b/i,
@@ -626,14 +633,14 @@ function alPad2(n) { return (n < 10 ? "0" : "") + n; }
 function alDecode(s, plusIsSpace) {
   var t = String(s == null ? "" : s);
   if (plusIsSpace) t = t.replace(/\+/g, " ");
-  // Links are sometimes encoded twice.
+  // Some links are encoded twice
   for (var i = 0; i < 2 && /%[0-9a-f]{2}/i.test(t); i++) {
     try { t = decodeURIComponent(t); } catch (e) { break; }
   }
   return t;
 }
 
-// Split a link or local path by hand; IINA's JSContext has no URL class
+// No URL class in IINA's JSContext
 function alSplitLink(link) {
   var s = String(link || "");
   var out = { scheme: "", host: "", port: "", path: "", query: {}, segments: [] };
@@ -666,12 +673,12 @@ function alQuery(link, key) {
   return Object.prototype.hasOwnProperty.call(link.query, key) ? String(link.query[key]) : "";
 }
 
-// Dots and underscores to spaces; hyphens stay ("WEB-DL", "Spider-Man").
+// Dots and underscores to spaces, hyphens stay (Spider-Man)
 function alSeparators(s) {
   return String(s).replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Index of the first quality/edition tag at or after `from`, or -1.
+// First quality tag at or after `from`, or -1
 function alFirstCut(s, from) {
   var best = -1, rest = s.slice(from);
   AL_CUT.forEach(function(re) {
@@ -681,7 +688,7 @@ function alFirstCut(s, from) {
   return best;
 }
 
-// A release or file name taken apart. Never throws.
+// Parse a release or file name
 function alParseName(raw) {
   var r = { title: "", year: null, season: null, episode: null, episodes: 1, episodeTitle: "",
             country: null, lead: false, dash: false, dated: false, extra: false, seasonWords: false, tagged: false };
@@ -694,7 +701,7 @@ function alParseName(raw) {
 
   r.dated = /\b(?:19|20)\d{2} (?:0[1-9]|1[0-2]) (?:0[1-9]|[12]\d|3[01])\b/.test(s);
 
-  // Season and episode, most explicit form first.
+  // Season and episode, most explicit form first
   var mark = -1, markEnd = -1, m;
   if ((m = /\b[Ss](\d{1,2}) ?[Ee](\d{1,4})((?:[ -]?[Ee]\d{1,4}|-\d{1,4})*)\b/.exec(s))) {
     r.season = +m[1]; r.episode = +m[2];
@@ -719,9 +726,9 @@ function alParseName(raw) {
     }
   }
 
-  // Year: the last plausible one before the episode or quality tags ("1917" alone is a title)
+  // Last year before the episode or tags (1917 alone is a title)
   var qc = alFirstCut(s, 0);
-  r.tagged = qc >= 0;   // carries release tags (1080p, BluRay, x264…)
+  r.tagged = qc >= 0;
   var hard = Math.min(mark >= 0 ? mark : s.length, qc >= 0 ? qc : s.length);
   var maxYear = new Date(Date.now()).getFullYear() + 1;
   var yearAt = -1, ym, yre = /\b(19\d{2}|20\d{2})\b/g;
@@ -732,7 +739,7 @@ function alParseName(raw) {
     }
   }
 
-  // Fansub numbering: "Title - 12". Only without a year, which it could be.
+  // Fansub "Title - 12", only without a year
   if (r.episode == null && r.year == null) {
     var dm = /(?:^| )[-–] ?(\d{1,4})(?:v\d)?(?= |$|[\[(])/.exec(s);
     if (dm && +dm[1] > 0) {
@@ -741,7 +748,7 @@ function alParseName(raw) {
       markEnd = Math.max(markEnd, dm.index + dm[0].length);
     }
   }
-  // "01 - Pilot": the title has to come from the folder
+  // "01 - Pilot": the title comes from the folder
   if (r.episode == null && r.season == null && r.year == null) {
     var lm = /^(\d{1,3})(?:(?: ?[-.] ?| )(?=\S)|$)/.exec(s);
     if (lm) { r.episode = +lm[1]; r.lead = true; mark = 0; markEnd = lm[0].length; }
@@ -752,7 +759,7 @@ function alParseName(raw) {
   if (qc >= 0) cut = Math.min(cut, qc);
   if (yearAt >= 0) cut = Math.min(cut, yearAt);
   var title = s.slice(0, cut).replace(/[\[({][^\])}]*$/, "");
-  // Only in the show's own name: "Pilot Part 1" is an episode title.
+  // Only in the show's name, "Pilot Part 1" is an episode title
   r.seasonWords = AL_SEASON_WORDS.test(title);
   var c = /\s\(?(US|UK|AU|NZ|CA|IE)\)?\s*$/.exec(title);
   if (c) { r.country = c[1] === "UK" ? "GB" : c[1]; title = title.slice(0, c.index); }
@@ -763,33 +770,33 @@ function alParseName(raw) {
   if (markEnd >= 0) {
     r.episodeTitle = s.slice(markEnd, tailAt >= 0 ? tailAt : s.length).replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "");
   }
-  // Episode titles may contain any word ("The Opening"); everything else may not.
+  // Any word is fine in an episode title (The Opening)
   var checked = r.episode != null ? r.title + " " + (tailAt >= 0 ? s.slice(tailAt) : "") : s;
   r.extra = AL_EXTRA.test(checked) || /\bsample\b/i.test(s);
   return r;
 }
 
-// Is the parsed title something TMDB could be searched for?
+// Worth searching TMDB for?
 function alTitleOk(r) {
   var t = r && r.title ? String(r.title) : "";
   if (!t) return false;
   var letters = (t.match(/\p{L}/gu) || []).length;
   var anchored = r.year != null || (r.season != null && r.episode != null && !r.lead);
-  // Numbers ("24", "1917") and two-letter titles ("It") need a year or episode beside them
+  // Numbers (24, 1917) and short titles (It) need a year or episode
   if (/^\d{2,4}$/.test(t)) return anchored;
   if (letters < 2 || (letters < 3 && !anchored)) return false;
   if (AL_GENERIC.test(t)) return false;
   var bare = t.replace(/[^0-9a-z]/gi, "");
   if (bare.length >= 12 && /^[0-9a-f]+$/i.test(bare)) return false;      // hashes, UUIDs
-  if (/^[A-Za-z0-9_-]{20,}$/.test(t)) return false;                         // keys and tokens
-  if (/[=&]/.test(t) || /[0-9a-f]{16,}/i.test(t)) return false;             // query strings, hashes
-  if (/^(?=.*\d)[0-9a-f]{6,}$/i.test(t)) return false;                       // short hex ids: "0f9a8b7c"
-  if (/^(?=(?:.*\d){3})(?=(?:.*[a-z]){3})[a-z0-9]{10,}$/i.test(t)) return false; // random ids: "aB3kd9Q2x7Lp"
+  if (/^[A-Za-z0-9_-]{20,}$/.test(t)) return false;                         // keys, tokens
+  if (/[=&]/.test(t) || /[0-9a-f]{16,}/i.test(t)) return false;             // query strings
+  if (/^(?=.*\d)[0-9a-f]{6,}$/i.test(t)) return false;                       // short hex ids
+  if (/^(?=(?:.*\d){3})(?=(?:.*[a-z]){3})[a-z0-9]{10,}$/i.test(t)) return false; // random ids
   if (/^(?:part|vol|volume|disc|cd) ?\d+$/i.test(t)) return false;
   return true;
 }
 
-// Title from the folder ("Show/Season 1/01.mkv"), but only if the folder looks like a show
+// Title from the folder (Show/Season 1/01.mkv) if it looks like a show
 function alFolderContext(folders) {
   var n = folders.length;
   if (!n) return null;
@@ -807,7 +814,7 @@ function alFolderContext(folders) {
   return { title: q.title, year: q.year, country: q.country, season: q.season, name: parent };
 }
 
-// One candidate name; weak ones (titles from IINA) need an episode or a year
+// Weak readings (IINA's title) need an episode or a year
 function alReading(name, folders, source, weak) {
   var p = alParseName(name);
   var from = String(name);
@@ -838,7 +845,7 @@ function alReading(name, folders, source, weak) {
     }
   }
   if (folders.slice(-2).some(function(f) { return AL_EXTRA_FOLDER.test(String(f).trim()); })) p.extra = true;
-  // Web page titles like "… Ending Scene" are clips
+  // Web page titles like "... Ending Scene" are clips
   if (weak && AL_EXTRA.test(alSeparators(name))) p.extra = true;
   return { p: p, source: source, weak: !!weak, from: from };
 }
@@ -846,7 +853,7 @@ function alReading(name, folders, source, weak) {
 function alUsable(rd) {
   var p = rd.p;
   if (!alTitleOk(p) || p.dated || p.lead) return false;
-  if (p.season != null && p.episode == null) return false;     // a whole-season pack
+  if (p.season != null && p.episode == null) return false;     // season pack
   if (rd.weak && p.episode == null && !p.year) return false;
   return true;
 }
@@ -857,7 +864,7 @@ function alDispositionName(v) {
   return m ? alDecode(m[1].trim(), false) : "";
 }
 
-// Ids a link carries, e.g. Comet's media_id and season/episode
+// Ids in the link (Comet's media_id etc.)
 function alIdsFromLink(link) {
   var ids = { imdb: null, season: null, episode: null };
   ["media_id", "imdb", "imdb_id", "imdbid"].forEach(function(k) {
@@ -882,7 +889,7 @@ function alStremioPath(link) {
   return { origin: link.scheme + "://" + link.host + (link.port ? ":" + link.port : ""), hash: m[1].toLowerCase(), idx: +m[2] };
 }
 
-// stats.json names the file; for index -1 take the largest video, like Stremio
+// stats.json has the name; index -1 means the largest video
 async function alStremioName(st) {
   async function stats(path) {
     var r = await withTimeout(iina.http.get(st.origin + path, {}), 4000, "Stremio stats");
@@ -902,7 +909,7 @@ async function alStremioName(st) {
   return pick ? { file: String(pick.name), folder: t.name ? String(t.name) : "" } : null;
 }
 
-// Every name the file is known by, best first.
+// Every name for the file, best first
 async function alReadings(h, link) {
   var out = [];
   var st = alStremioPath(link);
@@ -921,7 +928,7 @@ async function alReadings(h, link) {
   });
   if (link.segments.length && !st) {
     var segs = link.segments, last = segs[segs.length - 1];
-    // The end of a link only counts if it looks like a file name
+    // A link's last part counts only if it looks like a file name
     out.push(alReading(last, segs.slice(0, -1), link.scheme === "file" ? "file name" : "link",
                        link.scheme !== "file" && !AL_VIDEO_EXT.test(last)));
   }
@@ -934,7 +941,7 @@ async function alReadings(h, link) {
   return out;
 }
 
-// TMDB, cached in @data (errors aren't cached, a 404 is kept for a day)
+// TMDB, cached in @data. Errors aren't cached, a 404 is kept for a day
 var AL_CACHE_FILE = "@data/tmdb-cache.json";
 var AL_CACHE_MAX = 300;
 var alCache = null, alCacheDirty = false;
@@ -971,7 +978,7 @@ async function alTmdb(path, params, ttlHours, trim) {
   try {
     r = await withTimeout(iina.http.get("https://api.themoviedb.org/3" + path, { params: p }), HTTP_TIMEOUT_MS, "TMDB");
   } catch (e) {
-    // IINA rejects a 4xx/5xx answer with the response itself
+    // IINA rejects 4xx/5xx with the response
     if (!e || !e.statusCode) throw e;
     r = e;
   }
@@ -1036,7 +1043,6 @@ function alFind(imdb) {
   });
 }
 
-// Deciding
 function alNorm(s) {
   return String(s || "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()
     .replace(/&/g, " and ").replace(/['’`ʼ]/g, "").replace(/[^\p{L}\p{N}]+/gu, "");
@@ -1053,14 +1059,13 @@ function alTitleMatches(title, names) {
 
 function alYearOf(date) { var y = parseInt(String(date || "").slice(0, 4), 10); return isNaN(y) ? 0 : y; }
 
-// The file's length should be close to TMDB's runtime
 function alLengthFits(seconds, minutes, count) {
   if (!(minutes > 0)) return true;
   var ratio = seconds / (minutes * 60 * (count || 1));
   return ratio >= 0.5 && ratio <= 2;
 }
 
-// Search results whose title (or original or alternative title) is the name.
+// Results whose title, original or alternative title matches
 async function alTitleCandidates(kind, list, title) {
   var out = list.slice(0, 10).filter(function(x) { return alTitleMatches(title, [x.name, x.original]); });
   if (out.length) return out;
@@ -1071,7 +1076,7 @@ async function alTitleCandidates(kind, list, title) {
   return out;
 }
 
-// Several fit: only take the first if it towers over the rest.
+// Several fit: take the top one only if it's far more popular
 function alDominant(fits) {
   fits.sort(function(a, b) { return b.votes - a.votes; });
   return fits[0].votes >= 50 && fits[0].votes >= 10 * (fits[1].votes || 0) ? fits[0] : null;
@@ -1098,13 +1103,15 @@ function alMovieInfo(d) {
   return info;
 }
 
-async function alMatchTv(p, seconds) {
+// opts.absolute: anime numbered from 1 across all seasons
+async function alMatchTv(p, seconds, opts) {
+  opts = opts || {};
   if (p.seasonWords) return alNotSure("its season numbering may not match TMDB's", p.title);
   if (p.season === 0) return alNotSure("specials are numbered differently everywhere", p.title);
   var list = await alSearch("tv", p.title, p.year ? { first_air_date_year: p.year } : null);
   var loose = false;
   if (p.year && !(await alTitleCandidates("tv", list, p.title)).length) {
-    // A year in an episode's name is sometimes when it aired, not when the show began.
+    // The year can be when the episode aired, not when the show began
     list = await alSearch("tv", p.title, null);
     loose = true;
   }
@@ -1118,19 +1125,29 @@ async function alMatchTv(p, seconds) {
   if (p.country) cands = cands.filter(function(c) { return c.country.indexOf(p.country) >= 0; });
   if (!cands.length) return alNotSure("TMDB has no show called “" + p.title + "”", p.title);
 
-  // A show we can't check (no season number) still counts against one that fits
+  // A show we can't check still blocks one that fits
   var fits = [], why = "", unresolved = "";
   for (var i = 0; i < Math.min(3, cands.length); i++) {
     var d = await alTvDetails(cands[i].id);
     if (!d) continue;
     var regular = d.seasons.filter(function(n) { return n > 0; });
-    var season = p.season;
+    var season = p.season, sd = null, ep = null;
     if (season == null) {
-      if (regular.length !== 1) { why = unresolved = "no season number, and “" + d.name + "” has several"; continue; }
-      season = regular[0];
+      if (regular.length === 1) {
+        season = regular[0];
+      } else if (opts.absolute) {
+        var abs = await alAbsolute(d, p.episode);
+        if (abs.none) { why = "“" + d.name + "” has no episode " + p.episode; continue; }
+        if (!abs.season) { why = unresolved = "no season number, and “" + d.name + "” has several"; continue; }
+        season = abs.season; sd = abs.sd; ep = abs.ep;
+      } else {
+        why = unresolved = "no season number, and “" + d.name + "” has several"; continue;
+      }
     }
-    var sd = await alSeason(d.id, season);
-    var ep = sd ? sd.episodes.filter(function(e) { return e.n === p.episode; })[0] : null;
+    if (!sd) {
+      sd = await alSeason(d.id, season);
+      ep = sd ? sd.episodes.filter(function(e) { return e.n === p.episode; })[0] : null;
+    }
     if (!ep) { why = "“" + d.name + "” has no S" + alPad2(season) + "E" + alPad2(p.episode); continue; }
     if (!alLengthFits(seconds, ep.runtime, p.episodes)) { why = "the video's length doesn't match the episode"; continue; }
     fits.push({ votes: d.votes, info: alTvInfo(d, sd, ep, season) });
@@ -1148,7 +1165,7 @@ async function alMatchMovie(p, seconds) {
   var list = await alSearch("movie", p.title, p.year ? { primary_release_year: p.year } : null);
   var cands = await alTitleCandidates("movie", list, p.title);
   if (p.year && !cands.length) {
-    // Released elsewhere first or a year off: retry without the year
+    // Year off by one, or released elsewhere first
     list = await alSearch("movie", p.title, null);
     cands = await alTitleCandidates("movie", list, p.title);
   }
@@ -1172,7 +1189,97 @@ async function alMatchMovie(p, seconds) {
   return alNotSure(why || "no matching film", p.title);
 }
 
-// Only IINA's title, no year or episode ("Backrooms"): a well-known film of the right length, and nothing else by that name
+// Anime or not, and episodes per season
+function alTvShape(id) {
+  return alTmdb("/tv/" + id, {}, 24, function(x) {
+    var genres = (x.genres || []).map(function(g) { return g.id; });
+    var japanese = x.original_language === "ja" || (x.origin_country || []).indexOf("JP") >= 0;
+    return { anime: genres.indexOf(16) >= 0 && japanese,
+             counts: (x.seasons || []).filter(function(s) { return s.season_number > 0; })
+               .sort(function(a, b) { return a.season_number - b.season_number; })
+               .map(function(s) { return [s.season_number, s.episode_count || 0]; }) };
+  });
+}
+
+// Absolute number to TMDB's season and episode (One Piece - 1089)
+async function alAbsolute(d, n) {
+  var shape = await alTvShape(d.id);
+  if (!shape) return {};
+  var total = shape.counts.reduce(function(t, c) { return t + c[1]; }, 0);
+  // Far past the show's end, even if TMDB is behind: some other show
+  if (n > total * 1.5 + 10) return { none: true };
+  if (!shape.anime) return {};
+  var longest = shape.counts.reduce(function(m, c) { return Math.max(m, c[1]); }, 0);
+  // Only past the longest season, "Title - 12" could be any season
+  if (n <= longest || n > total) return {};
+  var before = 0;
+  for (var i = 0; i < shape.counts.length; i++) {
+    var s = shape.counts[i][0], c = shape.counts[i][1];
+    if (n <= before + c) {
+      var sd = await alSeason(d.id, s);
+      if (!sd || !sd.episodes.length) return {};
+      // Some seasons continue the numbering, others restart at 1
+      var ep = sd.episodes[0].n > 1 ? sd.episodes.filter(function(e) { return e.n === n; })[0] : sd.episodes[n - before - 1];
+      return ep ? { season: s, sd: sd, ep: ep } : {};
+    }
+    before += c;
+  }
+  return {};
+}
+
+// Too generic to trust (Part 2, Day 3, IV)
+var AL_GENERIC_TITLE = /^(?:(?:part|pt|episode|ep|chapter|ch|day|night|week|vol|volume|disc|disk|cd|take|scene|clip|act|round|game|session|lesson|lecture|track|book|issue|no)\.?\s*)?(?:\d+|[ivxl]+|one|two|three|four|five|six|seven|eight|nine|ten)$/i;
+
+// "Breaking Bad - Felina": one episode with that exact title in a well-known show
+async function alMatchEpisodeTitle(show, title, seconds, year) {
+  var want = alNorm(title);
+  if (want.length < 3 || AL_GENERIC_TITLE.test(title)) return alNotSure("no matching episode", show);
+  var cands = await alTitleCandidates("tv", await alSearch("tv", show, null), show);
+  if (!cands.length) return alNotSure("TMDB has no show called “" + show + "”", show);
+  var found = [], unchecked = "";
+  for (var i = 0; i < Math.min(3, cands.length); i++) {
+    var d = await alTvDetails(cands[i].id);
+    if (!d) continue;
+    var regular = d.seasons.filter(function(n) { return n > 0; });
+    // Too many seasons to check, so don't guess
+    if (regular.length > 30) { unchecked = "“" + d.name + "” has too many seasons to search"; continue; }
+    var seasons = await Promise.all(regular.map(function(n) { return alSeason(d.id, n); }));
+    seasons.forEach(function(sd, s) {
+      (sd ? sd.episodes : []).forEach(function(e) {
+        if (alNorm(e.name) === want) found.push({ d: d, sd: sd, ep: e, season: regular[s] });
+      });
+    });
+  }
+  if (unchecked) return alNotSure(unchecked, show);
+  if (found.length !== 1) return alNotSure(found.length ? "several episodes called “" + title + "”" : "no episode called “" + title + "”", show);
+  var f = found[0];
+  if (f.d.votes < 100) return alNotSure("“" + f.d.name + "” is too little-known to match on an episode's title", show);
+  if (year && Math.abs(alYearOf(f.ep.air) - year) > 1) return alNotSure("the year doesn't match the episode", show);
+  // Tighter than usual, a film can run twice an episode's length
+  var ratio = f.ep.runtime > 0 ? seconds / (f.ep.runtime * 60) : 1;
+  if (ratio < 0.7 || ratio > 1.5) return alNotSure("the video's length doesn't match the episode", show);
+  return { info: alTvInfo(f.d, f.sd, f.ep, f.season), query: show };
+}
+
+// Second tries, only when the normal match isn't sure
+async function alSecondTry(p, seconds, out, reading) {
+  var why = out.reason || "";
+  if (p.episode != null) {
+    if (p.season != null || !/^no season number, and /.test(why)) return out;
+    var again = await alMatchTv(p, seconds, { absolute: true });
+    return again.info ? again : out;
+  }
+  if (!reading.weak && /^TMDB has no film called /.test(why)) {
+    var parts = /^(.+?)\s+[-–—]\s+(.+)$/.exec(p.title);
+    if (parts) {
+      var byTitle = await alMatchEpisodeTitle(parts[1].trim(), parts[2].trim(), seconds, p.year);
+      if (byTitle.info) return byTitle;
+    }
+  }
+  return out;
+}
+
+// Only IINA's title (Backrooms): a popular film of the right length and nothing else by that name
 async function alMatchBareTitle(p, seconds) {
   var films = await alTitleCandidates("movie", await alSearch("movie", p.title, null), p.title);
   var shows = await alTitleCandidates("tv", await alSearch("tv", p.title, null), p.title);
@@ -1219,11 +1326,11 @@ async function alExactTv(showId, season, episode) {
   return { info: alTvInfo(d, sd, ep, season), query: d.name };
 }
 
-// seconds() is read late: the length can arrive after the file
-// Links that hide the name (TorBox, signed CDN links): ask the server, headers only
+// seconds() is read late, the duration can come after the file
+// Links that hide the name (TorBox, signed CDNs): ask the server for headers
 async function alServerName(url) {
   var out = "";
-  // A second try only if the server didn't answer at all; idle debrid files can be slow to wake up
+  // Retry once on no answer, idle debrid links can be slow to wake
   for (var attempt = 0; attempt < 2 && !/^HTTP\//m.test(out); attempt++) {
     try {
       var r = await withTimeout(utils.exec("/usr/bin/curl", [
@@ -1293,11 +1400,16 @@ async function alLookup(h, seconds) {
   var out;
   if (!(len > 0)) out = alNotSure("its length is unknown (a live stream?)", p.title);
   else {
-    try { out = p.episode != null ? await alMatchTv(p, len) : await alMatchMovie(p, len); }
-    catch (e) { out = alNotSure("couldn't ask TMDB (" + errStr(e) + ")", p.title); }
+    try {
+      out = p.episode != null ? await alMatchTv(p, len) : await alMatchMovie(p, len);
+    } catch (e) { out = alNotSure("couldn't ask TMDB (" + errStr(e) + ")", p.title); }
+    // If the second try fails, keep the first answer
+    if (!out.info && !/^couldn't ask TMDB/.test(out.reason)) {
+      try { var again = await alSecondTry(p, len, out, primary); if (again.info) out = again; } catch (e) {}
+    }
   }
   if (out.info) out.from = primary.from;
-  // The sidebar's search can open this episode once the show is picked
+  // So the sidebar can open this episode once the show is picked
   else if (p.season != null && p.episode != null) { out.season = p.season; out.episode = p.episode; }
   return out;
 }
@@ -1335,6 +1447,77 @@ async function autoLookup(d) {
   sidebar.postMessage("autoLookupResult", reply);
 }
 
+// Cast and Up next for the card, fetched only when switched on
+function extrasKey(d) {
+  return d && d.tmdbId ? [d.tmdbId, d.isMovie ? "film" : d.season, d.isMovie ? "" : d.episode].join(":") : "";
+}
+
+function cardDate(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+  if (!m) return "";
+  var text = (+m[3]) + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+m[2] - 1] + " " + m[1];
+  return Date.UTC(+m[1], +m[2] - 1, +m[3]) > Date.now() ? "airs " + text : text;
+}
+
+function cardCastFor(d) {
+  var path = d.isMovie ? "/movie/" + d.tmdbId + "/credits"
+    : "/tv/" + d.tmdbId + "/season/" + d.season + "/episode/" + d.episode + "/credits";
+  return alTmdb(path, {}, 168, function(c) {
+    return (c.cast || []).concat(c.guest_stars || []).filter(function(p) { return p && p.profile_path; }).slice(0, 4)
+      .map(function(p) { return { name: p.name || "", role: p.character || "", photo: "https://image.tmdb.org/t/p/w185" + p.profile_path }; });
+  });
+}
+
+async function cardNextFor(d) {
+  var season = Number(d.season), episode = Number(d.episode);
+  var sd = await alSeason(d.tmdbId, season);
+  var after = sd ? sd.episodes.filter(function(e) { return e.n > episode; })[0] : null;
+  if (!after) {
+    // Last of the season: the next season's first
+    var show = await alTvDetails(d.tmdbId);
+    if (!show || show.seasons.indexOf(season + 1) < 0) return null;
+    var nx = await alSeason(d.tmdbId, season + 1);
+    after = nx && nx.episodes.length ? nx.episodes[0] : null;
+    season = season + 1;
+  }
+  return after ? { code: "S" + alPad2(season) + "E" + alPad2(after.n), title: after.name || "", date: cardDate(after.air) } : null;
+}
+
+async function loadCardExtras(d) {
+  var key = extrasKey(d);
+  if (!key || !tmdbKey) return false;
+  if (cardExtras.key !== key) cardExtras = { key: key, cast: null, next: null };
+  var x = cardExtras, changed = false;
+  if (cardCast && x.cast === null) {
+    x.cast = [];
+    try { x.cast = (await cardCastFor(d)) || []; } catch (e) {}
+    changed = true;
+  }
+  if (cardNext && x.next === null && !d.isMovie && d.season != null && d.episode != null) {
+    x.next = false;
+    try { x.next = (await cardNextFor(d)) || false; } catch (e) {}
+    changed = true;
+  }
+  if (changed) alCacheFlush();
+  // Redraw a card that's already up
+  if (changed && cardVisible && cardExtras === x && extrasKey(currentEpisode) === key) showOverlay(currentEpisode);
+  return changed;
+}
+
+// A switch from the sidebar, whether it arrives as true, 1 or "true"
+function msgFlag(v) { return !!v && v !== "false" && v !== "0"; }
+
+// Cast or Up next switched: fetch what's missing and redraw
+function cardExtrasChanged() {
+  if ((cardCast || cardNext) && currentEpisode) {
+    loadCardExtras(currentEpisode).then(function(changed) {
+      if (!changed && cardVisible && currentEpisode) showOverlay(currentEpisode);
+    }, function() {});
+  } else if (cardVisible && currentEpisode) {
+    showOverlay(currentEpisode);
+  }
+}
+
 // Sidebar handlers
 function registerSidebarHandlers() {
 
@@ -1342,6 +1525,7 @@ function registerSidebarHandlers() {
     log("episodeSelected: " + (info ? info.epTitle : "null"));
     currentEpisode = info;
     resolveSegments(info);
+    if (cardCast || cardNext) loadCardExtras(info).then(null, function() {});
   });
 
   sidebar.onMessage("clearEpisode", function() {
@@ -1355,7 +1539,6 @@ function registerSidebarHandlers() {
     hideOverlay();
   });
 
-  // ON/OFF toggle from sidebar
   sidebar.onMessage("setOverlayEnabled", function(d) {
     sidebarSettingsIn = true;
     overlayEnabled = !!d.enabled;
@@ -1363,7 +1546,6 @@ function registerSidebarHandlers() {
     log("Overlay " + (overlayEnabled ? "enabled" : "disabled"));
   });
 
-  // Opacity slider
   sidebar.onMessage("setOverlayOpacity", function(d) {
     var v = parseFloat(d.value);
     if (isNaN(v)) return;
@@ -1371,7 +1553,6 @@ function registerSidebarHandlers() {
     if (overlayVisible) overlay.postMessage("setBgOpacity", { value: overlayBgOpacity });
   });
 
-  // Vertical position slider
   sidebar.onMessage("setOverlayVerticalPos", function(d) {
     var v = parseFloat(d.value);
     if (!isNaN(v)) {
@@ -1380,27 +1561,41 @@ function registerSidebarHandlers() {
     }
   });
 
-  // Configurable pause delay
   sidebar.onMessage("setPauseDelay", function(d) {
     var v = parseFloat(d.value);
     if (!isNaN(v) && v >= 0.5) pauseDelay = v;
   });
 
-  // Overlay theme: classic | compact | poster
   sidebar.onMessage("setOverlayTheme", function(d) {
     overlayTheme = d && d.value ? String(d.value) : "classic";
     overlay.postMessage("setTheme", { value: overlayTheme });
   });
 
-  // The sidebar's TMDB key, needed for IMDB ids
+  // The sidebar sends these only once changed
+  sidebar.onMessage("setOverlayWidth", function(d) {
+    var w = d && d.value != null ? parseFloat(d.value) : NaN;
+    overlayWidth = isNaN(w) ? null : Math.max(40, Math.min(100, w));
+    if (overlayVisible) overlay.postMessage("setWidth", { value: overlayWidth });
+  });
+  sidebar.onMessage("setPosterSide", function(d) {
+    posterSide = d && (d.value === "left" || d.value === "right") ? d.value : null;
+    if (overlayVisible) overlay.postMessage("setPosterSide", { value: posterSide });
+  });
+  sidebar.onMessage("setGlassStyle", function(d) {
+    glassStyle = d && (d.value === "clear" || d.value === "colorful") ? d.value : null;
+    if (overlayVisible) overlay.postMessage("setGlassStyle", { value: glassStyle });
+  });
+  sidebar.onMessage("setCardCast", function(d) { cardCast = !!d && msgFlag(d.on); cardExtrasChanged(); });
+  sidebar.onMessage("setCardNext", function(d) { cardNext = !!d && msgFlag(d.on); cardExtrasChanged(); });
+
   sidebar.onMessage("setTmdbKey", function(d) {
     tmdbKey = (d && d.key) ? String(d.key) : "";
   });
 
-  // Automatic Lookup: only asked for when switched on; the request carries the key too
+  // The request carries the key too
   sidebar.onMessage("autoLookup", function(d) { if (d && d.key) tmdbKey = String(d.key); autoLookup(d); });
 
-  // "Search again" in the sidebar: ignore the cache and look once more.
+  // Search again: skip the cache
   sidebar.onMessage("refreshSkip", function() {
     if (!skipEnabled || !currentEpisode) {
       sidebar.postMessage("skipResult", { count: 0, label: "" });
@@ -1409,7 +1604,6 @@ function registerSidebarHandlers() {
     resolveSegments(currentEpisode, true);
   });
 
-  // Skip intro/recap/credits toggle
   sidebar.onMessage("setSkipEnabled", function(d) {
     skipEnabled = !!(d && d.enabled);
     if (!skipEnabled) {
@@ -1422,14 +1616,14 @@ function registerSidebarHandlers() {
     log("Skip segments " + (skipEnabled ? "enabled" : "disabled"));
   });
 
-  // Sidebar is ready: resend the file in case the first fileChanged came too early
+  // Resend the file in case the first fileChanged came too early
   sidebar.onMessage("sidebarReady", function() {
     if (currentVideoUrl) {
       sidebar.postMessage("fileChanged", { url: currentVideoUrl });
     }
   });
 
-  // Open a URL in the browser; target=_blank doesn't work in IINA's web view
+  // target=_blank doesn't work in IINA's web view
   sidebar.onMessage("openExternalUrl", function(d) {
     if (d && d.url) {
       try {
@@ -1438,7 +1632,7 @@ function registerSidebarHandlers() {
         } else if (core && typeof core.openUrl === "function") {
           core.openUrl(d.url);
         } else {
-          // Last-ditch fallback: shell out to /usr/bin/open
+          // Fall back to /usr/bin/open
           utils.exec("/usr/bin/open", [d.url]);
         }
       } catch(e) {
@@ -1447,7 +1641,7 @@ function registerSidebarHandlers() {
     }
   });
 
-  // Resolve IMDB ids early so the opensubtitles.org link is ready
+  // IMDb ids early, for the opensubtitles.org link
   sidebar.onMessage("resolveImdbOnly", async function(d) {
     if (!d || !d.tmdbId) return;
     try {
@@ -1457,7 +1651,7 @@ function registerSidebarHandlers() {
         parentImdb: resolved.parentImdbId || null
       });
     } catch(e) {
-      // fine if this fails, the link just won't show
+      // the link just won't show
     }
   });
 
@@ -1516,7 +1710,7 @@ function registerSidebarHandlers() {
 
       var results = null;
 
-      // Wyzie: TMDB id first (fastest), then IMDB id, then the whole show
+      // TMDB id first, then IMDb id, then the whole show
 
       if (d.tmdbId && !results) {
         results = await attempt("TMDB lookup", String(d.tmdbId), includeSE);
@@ -1530,7 +1724,7 @@ function registerSidebarHandlers() {
         }
       }
 
-      // Whole show, for TV, unless that was already the request
+      // Whole show, unless that was the request already
       if (!results && !d.broadShow && !d.isMovie && d.tmdbId && includeSE) {
         results = await attempt("Whole-show fallback", String(d.tmdbId), false);
       }
@@ -1602,7 +1796,7 @@ function registerSidebarHandlers() {
 
       var results = null;
 
-      // Manual query: plain text search
+      // Typed query
       if (d.manualQuery) {
         progress("Searching SubDL…");
         var mr = await sdCall({ film_name: d.manualQuery, languages: lang, subs_per_page: perPage });
@@ -1611,19 +1805,18 @@ function registerSidebarHandlers() {
         return;
       }
 
-      // Auto search: resolve IMDB ids first
       progress("Resolving IMDB ID…");
       d = await resolveImdbIds(d, d.tmdbKey || "");
 
       if (d.isMovie) {
-        // MOVIE cascade
+        // Films
         if (d.tmdbId && !results) {
           var p = { tmdb_id: String(d.tmdbId), type: "movie", languages: lang };
           if (d.year) p.year = String(d.year);
           results = await attempt("TMDB lookup", p);
         }
         if (!results && d.imdbId) {
-          // SubDL takes imdb_id with the "tt" prefix
+          // SubDL wants the tt prefix
           results = await attempt("IMDB lookup", {
             imdb_id:   String(d.imdbId),
             type:      "movie",
@@ -1636,7 +1829,7 @@ function registerSidebarHandlers() {
           results = await attempt("Text search", qp);
         }
       } else {
-        // TV cascade
+        // TV
         if (d.tmdbId && d.season && d.episode && !results) {
           results = await attempt("TMDB lookup", {
             tmdb_id:        String(d.tmdbId),
@@ -1655,7 +1848,7 @@ function registerSidebarHandlers() {
             languages:      lang
           });
         }
-        // Fallback: full-season pack
+        // Season pack
         if (!results && d.tmdbId) {
           results = await attempt("Full-season fallback", {
             tmdb_id:     String(d.tmdbId),
@@ -1664,7 +1857,7 @@ function registerSidebarHandlers() {
             languages:   lang
           });
         }
-        // Last-ditch: text search
+        // Text search
         if (!results && (d.query || d.showTitle)) {
           var ep = { film_name: d.query || d.showTitle, type: "tv", languages: lang };
           if (d.season)  ep.season_number  = String(d.season);
@@ -1685,28 +1878,25 @@ function registerSidebarHandlers() {
     }
   });
 
-  // SubDL serves ZIPs: download to @tmp, unzip, load the subtitle
+  // SubDL serves zips: download, unzip, load
   sidebar.onMessage("loadSubdlSub", async function(d) {
     if (!d || !d.url) {
       sidebar.postMessage("subdlLoadResult", { success: false, error: "No URL" });
       return;
     }
 
-    // which step failed, for the error message
     var step = "starting";
 
     try {
-      // SubDL gives relative URLs like "/subtitle/123-456.zip"
+      // SubDL gives relative URLs
       var url = d.url;
       if (url.charAt(0) === "/") url = "https://dl.subdl.com" + url;
       else if (!/^https?:\/\//i.test(url)) url = "https://dl.subdl.com/" + url;
 
-      // so downloads don't clash
       var stamp = Date.now() + "-" + Math.floor(Math.random() * 1e6);
       var zipPath    = "@tmp/subdl-" + stamp + ".zip";
       var extractDir = "@tmp/subdl-" + stamp;
 
-      // 1. Download
       step = "download";
       var downloadedZipAbsPath = await withTimeout(
         iina.http.download(url, zipPath),
@@ -1719,7 +1909,6 @@ function registerSidebarHandlers() {
       }
       if (!zipAbs) zipAbs = zipPath;
 
-      // 2. Extract dir
       step = "prepare-extract-dir";
       var extractAbs;
       if (utils && typeof utils.resolvePath === "function") {
@@ -1732,14 +1921,14 @@ function registerSidebarHandlers() {
         throw new Error("mkdir failed: " + (mkdirResult.stderr || mkdirResult.stdout || "no output"));
       }
 
-      // 3. Unzip (macOS's UnZip 6.00 has no -O, so plain flags only)
+      // macOS unzip 6.00 has no -O
       step = "unzip";
       var execResult = await utils.exec("/usr/bin/unzip", ["-j", "-o", String(zipAbs), "-d", String(extractAbs)]);
       if (execResult.status !== 0) {
         throw new Error("Unzip failed: " + (execResult.stderr || execResult.stdout || ("exit " + execResult.status)));
       }
 
-      // 4. Find the subtitle, nested zips too
+      // Find the subtitle, also in nested zips
       step = "find-subtitle";
       var subFile = null;
       var nestedZip = null;
@@ -1754,14 +1943,13 @@ function registerSidebarHandlers() {
         }
       }
 
-      // First pass: subtitle files
       for (var i1 = 0; i1 < fileNames.length; i1++) {
         if (/\.(srt|ass|ssa|vtt|sub)$/i.test(fileNames[i1])) {
           subFile = String(extractAbs) + "/" + fileNames[i1];
           break;
         }
       }
-      // Second pass: nested zip
+      // Nested zip
       if (!subFile) {
         for (var i2 = 0; i2 < fileNames.length; i2++) {
           if (/\.zip$/i.test(fileNames[i2])) {
@@ -1792,7 +1980,7 @@ function registerSidebarHandlers() {
         throw new Error("No subtitle (.srt/.ass/.ssa/.vtt) found inside the zip" + (fileNames.length ? " — got: " + fileNames.join(", ") : ""));
       }
 
-      // 5. An empty file means unzip quietly failed
+      // An empty file means unzip failed quietly
       step = "validate";
       var statResult = await utils.exec("/usr/bin/stat", ["-f", "%z", String(subFile)]);
       var fileSize = parseInt((statResult.stdout || "0").trim(), 10);
@@ -1800,7 +1988,7 @@ function registerSidebarHandlers() {
         throw new Error("Extracted subtitle is empty or too small (" + fileSize + " bytes)");
       }
 
-      // 6. Load it; mpv handles the encoding
+      // mpv handles the encoding
       step = "sub-add";
       var loaded = false;
       try {
@@ -1808,11 +1996,11 @@ function registerSidebarHandlers() {
           core.subtitle.loadTrack(subFile);
           loaded = true;
         }
-      } catch(_e) { /* fall through to mpv command */ }
+      } catch(_e) { /* use the mpv command */ }
 
       if (!loaded) {
         iina.mpv.command("sub-add", [subFile, "select"]);
-        // Select the new track in case `select` didn't take
+        // In case `select` didn't take
         try {
           var tracks = iina.mpv.getNative ? iina.mpv.getNative("track-list") : null;
           if (tracks && tracks.length) {
@@ -1827,7 +2015,7 @@ function registerSidebarHandlers() {
               try { iina.mpv.set("sid", maxSid); } catch(_e2) {}
             }
           }
-        } catch(_e3) { /* best effort */ }
+        } catch(_e3) { }
       }
 
       log("SubDL subtitle loaded from " + subFile);
@@ -1849,7 +2037,7 @@ function registerSidebarHandlers() {
           headers: {
             "Api-Key":      d.key,
             "Content-Type": "application/json",
-            "User-Agent":   OS_USER_AGENT  // required by OS
+            "User-Agent":   OS_USER_AGENT
           },
           data:    { username: d.username, password: d.password }
         }),
@@ -1869,7 +2057,7 @@ function registerSidebarHandlers() {
   });
 
   sidebar.onMessage("searchSubs", async function(d) {
-    // One API call: { results, error, status }
+    // Returns { results, error, status }
     async function osCall(params, hdrs) {
       try {
         var resp = await withTimeout(
@@ -1898,7 +2086,7 @@ function registerSidebarHandlers() {
       if (d.token) hdrs["Authorization"] = "Bearer " + d.token;
       var lang  = d.lang || "en";
 
-      // Manual query: plain text search
+      // Typed query
       if (d.manualQuery) {
         progress("Searching OpenSubtitles…");
         var mq = await osCall({ query: d.manualQuery, languages: lang }, hdrs);
@@ -1907,7 +2095,6 @@ function registerSidebarHandlers() {
         return;
       }
 
-      // Auto search: resolve IMDB ids, then try in order
       progress("Resolving IMDB ID…");
       d = await resolveImdbIds(d, d.tmdbKey || "");
 
@@ -1925,7 +2112,7 @@ function registerSidebarHandlers() {
       var results = null;
 
       if (d.isMovie) {
-        // Movies: imdb_id, then tmdb_id + year, then a text query
+        // Films: imdb_id, then tmdb_id + year, then text
         var movieImdb = stripTtAndZeros(d.imdbId);
         if (movieImdb && !results) {
           results = await attempt("IMDB lookup", { imdb_id: movieImdb, languages: lang });
@@ -1941,7 +2128,7 @@ function registerSidebarHandlers() {
           results = await attempt("Text search", qp);
         }
       } else {
-        // Episodes: parent imdb id + season/episode first, as OpenSubtitles recommends, then the fallbacks
+        // Episodes: show imdb id + season/episode first, as OpenSubtitles advises
         var epImdb = stripTtAndZeros(d.imdbId);
         if (epImdb && !results) {
           results = await attempt("Episode IMDB lookup", {
@@ -1991,7 +2178,7 @@ function registerSidebarHandlers() {
       var hdrs = {
         "Api-Key":      d.key,
         "Content-Type": "application/json",
-        "User-Agent":   OS_USER_AGENT  // required by OS
+        "User-Agent":   OS_USER_AGENT
       };
       if (d.token) hdrs["Authorization"] = "Bearer " + d.token;
       var resp = await withTimeout(
@@ -2026,7 +2213,7 @@ function setupSidebar() {
   }
 }
 
-// The sidebar sends its settings once, the overlay switch first; on a busy start that can come before the handlers above, so ask again
+// On a busy start the sidebar's settings can arrive before these handlers, so ask again
 var sidebarSettingsIn = false;
 function askForSidebarSettings(tries) {
   setTimeout(function() {
@@ -2039,13 +2226,13 @@ function askForSidebarSettings(tries) {
 
 var overlayHandlersRegistered = false;
 function registerOverlayHandlers() {
-  if (overlayHandlersRegistered) return;   // never stack duplicates
+  if (overlayHandlersRegistered) return;
   overlayHandlersRegistered = true;
   overlay.onMessage("closeOverlay", function() { hideOverlay(); });
   overlay.onMessage("skipSegment", function() { skipNow("button"); });
 }
 
-// A trigger that does not involve the overlay web view at all.
+// Works without the overlay
 try {
   menu.addItem(menu.item("Skip Intro / Recap / Credits", function() {
     skipNow("menu");
@@ -2069,7 +2256,7 @@ event.on("iina.file-loaded", function() {
   hideSkip();
   stopTimeWatcher();
   hideOverlay();
-  // The sidebar looks this URL up in its per-URL memory
+  // The sidebar keeps picks per URL
   try { currentVideoUrl = core.status.url || ""; } catch(e) { currentVideoUrl = ""; }
   sidebar.postMessage("fileChanged", { url: currentVideoUrl });
   sidebar.postMessage("overlayStatus", { text: "Select an episode, then pause" });

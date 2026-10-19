@@ -1,4 +1,4 @@
-# Local API keys for scripts/check-apis.mjs — never commit these.
+# Local API keys, never commit
 .env
 .env.local
 .env.*.local
